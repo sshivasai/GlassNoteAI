@@ -50,9 +50,9 @@ _FALLBACK_ALL_MODELS = [
     {"display_name": "GPT-4 Turbo  [OpenAI]",                   "provider": "openai",    "model_id": "gpt-4-turbo"},
     {"display_name": "o1  [OpenAI — Reasoning]",                "provider": "openai",    "model_id": "o1"},
     {"display_name": "o1 Mini  [OpenAI — Reasoning Fast]",      "provider": "openai",    "model_id": "o1-mini"},
-    {"display_name": "GPT-5.4 Nano  [OpenAI — Ultra Fast]",     "provider": "openai",    "model_id": "gpt-5.4-nano"},
     {"display_name": "GPT-5.4 Mini  [OpenAI — Fast]",           "provider": "openai",    "model_id": "gpt-5.4-mini"},
     {"display_name": "GPT-5.4  [OpenAI — Best]",                "provider": "openai",    "model_id": "gpt-5.4"},
+    {"display_name": "GPT-5.4 Nano  [OpenAI — Ultra Fast]",     "provider": "openai",    "model_id": "gpt-5.4-nano"},
     {"display_name": "GPT-4.1 Nano  [OpenAI — Ultra Fast]",     "provider": "openai",    "model_id": "gpt-4.1-nano"},
 ]
 

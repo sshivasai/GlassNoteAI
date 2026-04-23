@@ -27,9 +27,9 @@ ALL_MODELS = [
     ("GPT-4 Turbo  [OpenAI]",                   "openai",    "gpt-4-turbo"),
     ("o1  [OpenAI — Reasoning]",                "openai",    "o1"),
     ("o1 Mini  [OpenAI — Reasoning Fast]",      "openai",    "o1-mini"),
-    ("GPT-5.4 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-5.4-nano"),
     ("GPT-5.4 Mini  [OpenAI — Fast]",          "openai",    "gpt-5.4-mini"),
     ("GPT-5.4  [OpenAI — Best]",               "openai",    "gpt-5.4"),
+    ("GPT-5.4 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-5.4-nano"),
     ("GPT-4.1 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-4.1-nano"),
 ]
 

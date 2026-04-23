@@ -38,6 +38,9 @@ from app.pricing_config import is_model_allowed
 
 router = APIRouter(prefix="/v1/proxy", tags=["llm-proxy"])
 
+# GPT-5.4 family uses the new Responses API, not Chat Completions
+_GPT5_MODELS = {"gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"}
+
 
 # ── Pre-warmed async HTTP/2 connection pool ───────────────────────────────────
 # Shared across all requests. Eliminates cold-start TLS handshakes (~80-200ms).
@@ -205,9 +208,10 @@ async def proxy_openai(
     user: dict = Depends(get_current_user),
 ):
     """
-    Zero-copy streaming proxy for OpenAI's /v1/chat/completions endpoint.
+    Zero-copy streaming proxy for OpenAI.
 
-    Injects stream_options to always get usage metadata at end of stream.
+    Routes to /v1/chat/completions for standard models.
+    Routes to /v1/responses for GPT-5.4 family (new Responses API).
     """
     settings = get_settings()
     if not settings.openai_api_key:
@@ -217,9 +221,6 @@ async def proxy_openai(
     try:
         body_json = json.loads(body_bytes)
         model = body_json.get("model", "gpt-4o-mini")
-        # Ensure we always receive usage in the final SSE chunk
-        body_json.setdefault("stream_options", {})["include_usage"] = True
-        body_bytes = json.dumps(body_json).encode("utf-8")
     except (json.JSONDecodeError, AttributeError):
         model = "gpt-4o-mini"
 
@@ -233,56 +234,183 @@ async def proxy_openai(
 
     t0 = time.time()
 
-    async def stream_relay():
-        output_tokens = 0
-        input_tokens  = 0
+    if model in _GPT5_MODELS:
+        # ── GPT-5.4 family: use new Responses API ─────────────────────────
+        # Convert Chat Completions format → Responses API format
+        messages = body_json.get("messages", [])
+        system_content = ""
+        input_messages = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                system_content = content
+            else:
+                input_messages.append({"role": role, "content": content})
 
-        async with pool.stream(
-            "POST",
-            "https://api.openai.com/v1/chat/completions",
-            headers=proxy_headers,
-            content=body_bytes,
-        ) as response:
-            if response.status_code != 200:
-                error_body = await response.aread()
-                yield error_body
-                return
+        responses_body = {
+            "model":             model,
+            "input":             input_messages,
+            "stream":            True,
+            "max_output_tokens": body_json.get("max_tokens", 600),
+        }
+        if system_content:
+            responses_body["instructions"] = system_content
 
-            async for chunk in response.aiter_bytes():
-                yield chunk
+        responses_body_bytes = json.dumps(responses_body).encode("utf-8")
 
-                if b'"usage"' in chunk and b'"total_tokens"' in chunk:
+        async def stream_relay_responses():
+            output_tokens = 0
+            input_tokens  = 0
+
+            async with pool.stream(
+                "POST",
+                "https://api.openai.com/v1/responses",
+                headers=proxy_headers,
+                content=responses_body_bytes,
+            ) as response:
+                if response.status_code != 200:
+                    error_body = await response.aread()
+                    yield error_body
+                    return
+
+                async for chunk in response.aiter_bytes():
+                    # Parse usage from response.completed event
+                    if b'"response.completed"' in chunk or b'"response.done"' in chunk:
+                        try:
+                            for line in chunk.decode("utf-8", errors="ignore").split("\n"):
+                                if line.startswith("data:"):
+                                    data = line[5:].strip()
+                                    if data and data != "[DONE]":
+                                        evt = json.loads(data)
+                                        if evt.get("type") in ("response.completed", "response.done"):
+                                            resp = evt.get("response", {})
+                                            usage = resp.get("usage", {})
+                                            input_tokens  = usage.get("input_tokens", 0)
+                                            output_tokens = usage.get("output_tokens", 0)
+                        except Exception:
+                            pass
+
+                    # Re-emit as OpenAI Chat Completions SSE format so the
+                    # GUI client (which expects chat/completions format) works unchanged.
+                    # We translate response.output_text.delta → choices[0].delta.content
                     try:
+                        translated_chunks = []
                         for line in chunk.decode("utf-8", errors="ignore").split("\n"):
-                            if line.startswith("data:") and '"usage"' in line:
-                                data = line[5:].strip()
+                            if not line.startswith("data:"):
+                                continue
+                            data = line[5:].strip()
+                            if not data or data == "[DONE]":
                                 if data == "[DONE]":
-                                    continue
+                                    translated_chunks.append("data: [DONE]\n\n")
+                                continue
+                            try:
                                 evt = json.loads(data)
-                                usage = evt.get("usage", {})
-                                input_tokens  = usage.get("prompt_tokens", 0)
-                                output_tokens = usage.get("completion_tokens", 0)
+                                etype = evt.get("type", "")
+                                if etype == "response.output_text.delta":
+                                    delta_text = evt.get("delta", "")
+                                    translated = {
+                                        "choices": [{"delta": {"content": delta_text}, "index": 0}]
+                                    }
+                                    translated_chunks.append(f"data: {json.dumps(translated)}\n\n")
+                                elif etype in ("response.completed", "response.done"):
+                                    resp = evt.get("response", {})
+                                    usage = resp.get("usage", {})
+                                    translated = {
+                                        "choices": [],
+                                        "usage": {
+                                            "prompt_tokens":     usage.get("input_tokens", 0),
+                                            "completion_tokens": usage.get("output_tokens", 0),
+                                            "total_tokens":      usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
+                                        }
+                                    }
+                                    translated_chunks.append(f"data: {json.dumps(translated)}\n\n")
+                            except Exception:
+                                pass
+                        if translated_chunks:
+                            yield "".join(translated_chunks).encode("utf-8")
+                        else:
+                            yield chunk
                     except Exception:
-                        pass
+                        yield chunk
 
-        elapsed_ms = (time.time() - t0) * 1000
-        asyncio.create_task(_log_llm_usage(
-            user_id=user["sub"],
-            provider="openai",
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            latency_ms=int(elapsed_ms),
-        ))
+            elapsed_ms = (time.time() - t0) * 1000
+            asyncio.create_task(_log_llm_usage(
+                user_id=user["sub"],
+                provider="openai",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=int(elapsed_ms),
+            ))
 
-    return StreamingResponse(
-        stream_relay(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control":    "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+        return StreamingResponse(
+            stream_relay_responses(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control":     "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    else:
+        # ── Standard models: use Chat Completions API ──────────────────────
+        try:
+            body_json.setdefault("stream_options", {})["include_usage"] = True
+            body_bytes = json.dumps(body_json).encode("utf-8")
+        except Exception:
+            pass
+
+        async def stream_relay():
+            output_tokens = 0
+            input_tokens  = 0
+
+            async with pool.stream(
+                "POST",
+                "https://api.openai.com/v1/chat/completions",
+                headers=proxy_headers,
+                content=body_bytes,
+            ) as response:
+                if response.status_code != 200:
+                    error_body = await response.aread()
+                    yield error_body
+                    return
+
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+
+                    if b'"usage"' in chunk and b'"total_tokens"' in chunk:
+                        try:
+                            for line in chunk.decode("utf-8", errors="ignore").split("\n"):
+                                if line.startswith("data:") and '"usage"' in line:
+                                    data = line[5:].strip()
+                                    if data == "[DONE]":
+                                        continue
+                                    evt = json.loads(data)
+                                    usage = evt.get("usage", {})
+                                    input_tokens  = usage.get("prompt_tokens", 0)
+                                    output_tokens = usage.get("completion_tokens", 0)
+                        except Exception:
+                            pass
+
+            elapsed_ms = (time.time() - t0) * 1000
+            asyncio.create_task(_log_llm_usage(
+                user_id=user["sub"],
+                provider="openai",
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=int(elapsed_ms),
+            ))
+
+        return StreamingResponse(
+            stream_relay(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control":    "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
 
 
@@ -374,6 +502,10 @@ async def _log_llm_usage(
         "gpt-4-turbo":        10.00,
         "o1":                 15.00,
         "o1-mini":             3.00,
+        "gpt-5.4":             5.00,
+        "gpt-5.4-mini":        1.50,
+        "gpt-5.4-nano":        0.30,
+        "gpt-4.1-nano":        0.10,
     }
     _COST_PER_1M_OUT = {
         "claude-opus-4-5":    75.00,
@@ -386,6 +518,10 @@ async def _log_llm_usage(
         "gpt-4-turbo":        30.00,
         "o1":                 60.00,
         "o1-mini":            12.00,
+        "gpt-5.4":            20.00,
+        "gpt-5.4-mini":        6.00,
+        "gpt-5.4-nano":        1.20,
+        "gpt-4.1-nano":        0.40,
     }
     cost_in  = (input_tokens  / 1_000_000) * _COST_PER_1M_IN.get(model, 5.0)
     cost_out = (output_tokens / 1_000_000) * _COST_PER_1M_OUT.get(model, 15.0)

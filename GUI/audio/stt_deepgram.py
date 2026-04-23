@@ -199,7 +199,7 @@ class DeepgramStreamingSTT:
                     # (e.g. when the pipeline is paused / gated).
                     threading.Thread(
                         target=self._keepalive_loop,
-                        args=(ws,),
+                        args=(ws, False),
                         daemon=True,
                     ).start()
 
@@ -308,12 +308,14 @@ class DeepgramStreamingSTT:
                         daemon=True,
                     ).start()
 
-                    # Issue 2 fix: flux WebSocket also needs a keepalive thread.
-                    # Without it the connection drops after 60 s of silence (e.g.
-                    # when the pipeline is paused / gated between interview turns).
+                    # Issue 2 fix (revised): flux endpoint does NOT support
+                    # KeepAlive — only CloseStream and Configure are valid.
+                    # Sending KeepAlive to flux causes a server deserialization
+                    # error and a 1005 disconnect/reconnect loop.
+                    # We pass is_flux=True so _keepalive_loop exits immediately.
                     threading.Thread(
                         target=self._keepalive_loop,
-                        args=(ws,),
+                        args=(ws, True),
                         daemon=True,
                     ).start()
 
@@ -399,9 +401,10 @@ class DeepgramStreamingSTT:
         if drained:
             print(f"[deepgram] Drained {drained} stale audio chunks before reconnect")
 
-    def _keepalive_loop(self, ws):
+    def _keepalive_loop(self, ws, is_flux: bool = False):
         """
-        Bug D fix — sends a Deepgram KeepAlive message every 8 seconds.
+        Bug D fix — sends a Deepgram KeepAlive message every 8 seconds
+        for V1 (nova) connections only.
 
         Deepgram closes the WebSocket if no data (audio or ping) is received
         for 60 seconds.  When the pipeline is paused / gated (Interview Mode
@@ -411,10 +414,19 @@ class DeepgramStreamingSTT:
 
         The KeepAlive message is documented in the Deepgram Streaming API:
           {"type": "KeepAlive"}
-        It is valid for both V1 (nova) and V2 (flux) endpoints.
+        It is valid for V1 (nova) endpoints ONLY.
+
+        V2 (flux) endpoints do NOT support KeepAlive — only CloseStream and
+        Configure are valid.  Sending KeepAlive to flux causes:
+          "unknown variant `KeepAlive`, expected `CloseStream` or `Configure`"
+        followed by a 1005 disconnect.  For flux we skip the send entirely;
+        the continuous audio stream itself keeps the connection alive.
 
         Interval: 8 s  (well within the 60 s server timeout, low overhead).
         """
+        if is_flux:
+            # Flux endpoint does not accept KeepAlive — exit immediately.
+            return
         keepalive_msg = json.dumps({"type": "KeepAlive"})
         while self._running:
             _time.sleep(8)
