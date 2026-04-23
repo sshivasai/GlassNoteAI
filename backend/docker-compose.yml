@@ -1,0 +1,39 @@
+# GlassNote — Docker Compose (local development)
+# Start:  docker compose up -d
+# Logs:   docker compose logs -f api
+# Stop:   docker compose down
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: glassnote
+      POSTGRES_PASSWORD: glassnote
+      POSTGRES_DB: glassnote
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glassnote"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── GlassNote API ───────────────────────────────────────────
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://glassnote:glassnote@db:5432/glassnote?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

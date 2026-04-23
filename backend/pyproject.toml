@@ -1,0 +1,13 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]        # ensures `from app.xxx import` works without sys.path tricks
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.pytest.ini_options.markers]
+asyncio = "marks tests as async"
