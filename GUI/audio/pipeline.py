@@ -112,7 +112,7 @@ class AudioPipeline(QThread):
         # ── Cached config values ───────────────────────────────────────────────
         # Loaded once at start_recording() and on refresh_config().
         # Eliminates config.load_config() disk reads on every 100 ms poll.
-        self._silence_threshold: float = 1.5
+        self._silence_threshold: float = 0.8  # TTFT-OPT: reduced default from 1.5s
         self._smart_answering:   bool  = False
         # Issue 4a: auto_answer=False means no silence-timer dispatch at all.
         # The user must stop interview mode to trigger an LLM call.
@@ -172,7 +172,7 @@ class AudioPipeline(QThread):
         self._audio_source = source
 
         # Cache hot-path config values
-        self._silence_threshold = float(cfg.get("silence_threshold", 1.5))
+        self._silence_threshold = float(cfg.get("silence_threshold", 0.8))
         self._smart_answering   = bool(cfg.get("smart_answering", False))
         self._auto_answer       = bool(cfg.get("auto_answer",      True))   # Issue 4a
 
@@ -286,7 +286,7 @@ class AudioPipeline(QThread):
         Re-reads all fields used in the hot poll path.
         """
         cfg = config.load_config()
-        self._silence_threshold = float(cfg.get("silence_threshold", 1.5))
+        self._silence_threshold = float(cfg.get("silence_threshold", 0.8))
         self._smart_answering   = bool(cfg.get("smart_answering", False))
         self._auto_answer       = bool(cfg.get("auto_answer",      True))   # Issue 4a
         print(
@@ -328,7 +328,7 @@ class AudioPipeline(QThread):
           4. User currently speaking?        → skip  (gate guard)
           5. Meaningful interviewer speech?
           6. Silence >= threshold?           (cached — no disk read)
-          7. Segment >= 1.5 s?
+          7. Segment >= 0.8 s?
           8. Text differs from last dispatch?
           → emit transcript_ready
         """
@@ -339,6 +339,13 @@ class AudioPipeline(QThread):
 
         # Guard 0 — dispatch gate (interview mode toggle)
         if self._gated:
+            return
+
+        # TTFT-OPT: smart_answering bypasses silence timer
+        # When smart_answering=True, _on_smart_dispatch() fires immediately on
+        # STT EndOfTurn. The silence timer is redundant — skip it entirely to
+        # avoid any additional latency on the hot path.
+        if self._smart_answering:
             return
 
         # Guard 0b — auto_answer disabled: silence timer never dispatches.
@@ -373,7 +380,7 @@ class AudioPipeline(QThread):
             time.time() - self._segment_start_time
             if self._segment_start_time > 0 else 0.0
         )
-        if segment_dur < 1.5:
+        if segment_dur < 0.8:  # TTFT-OPT: reduced from 1.5s
             return
 
         # Guard 8

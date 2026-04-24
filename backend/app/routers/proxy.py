@@ -81,6 +81,62 @@ async def _get_openai_pool() -> httpx.AsyncClient:
     return _openai_pool
 
 
+# TTFT-OPT: eager pool warm-up at startup
+async def eager_warm_pools() -> dict:
+    """
+    Eagerly create HTTP/2 connection pools and send a lightweight HEAD/GET
+    request to each upstream provider at app startup.
+
+    This ensures the first real user request does NOT pay the TLS handshake
+    overhead (~80-200 ms per provider). Called from the lifespan handler in
+    main.py so pools are warm before the first request arrives.
+
+    Returns:
+        dict: Warm-up results per provider with latency_ms and status.
+    """
+    settings = get_settings()
+    results  = {}
+
+    if settings.anthropic_api_key:
+        try:
+            pool = await _get_anthropic_pool()
+            t0   = time.time()
+            # HEAD not supported by Anthropic — use GET /v1/models (lightweight)
+            r = await pool.get(
+                "https://api.anthropic.com/v1/models",
+                headers={
+                    "x-api-key":         settings.anthropic_api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                timeout=8.0,
+            )
+            ms = (time.time() - t0) * 1_000
+            results["anthropic"] = {"status": "warm", "latency_ms": round(ms), "http_status": r.status_code}
+            print(f"[proxy] TTFT-OPT: Anthropic pool warmed — {ms:.0f} ms  (HTTP {r.status_code})")
+        except Exception as e:
+            results["anthropic"] = {"status": "error", "error": str(e)}
+            print(f"[proxy] TTFT-OPT: Anthropic pool warm-up failed (non-fatal): {e}")
+
+    if settings.openai_api_key:
+        try:
+            pool = await _get_openai_pool()
+            t0   = time.time()
+            # GET /v1/models is the lightest authenticated endpoint
+            r = await pool.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                timeout=8.0,
+            )
+            ms = (time.time() - t0) * 1_000
+            results["openai"] = {"status": "warm", "latency_ms": round(ms), "http_status": r.status_code}
+            print(f"[proxy] TTFT-OPT: OpenAI pool warmed — {ms:.0f} ms  (HTTP {r.status_code})")
+        except Exception as e:
+            results["openai"] = {"status": "error", "error": str(e)}
+            print(f"[proxy] TTFT-OPT: OpenAI pool warm-up failed (non-fatal): {e}")
+
+    return results
+
+
 # ── Model access guard ────────────────────────────────────────────────────────
 # Uses pricing_config.is_model_allowed() — single source of truth.
 # No hardcoded dictionaries here.

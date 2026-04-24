@@ -83,9 +83,31 @@ class SessionContext:
         the user's resume, target company, job description, and custom
         instructions.
 
+        # TTFT-OPT: cache system prompt to avoid rebuild on every dispatch
+        The prompt is expensive to build (string concatenation of resume +
+        JD + company). Cache the result and only rebuild when the inputs
+        (resume_text, job_description, company, extra_prompt, language,
+        simple_language) actually change.
+
         Returns:
             str: The complete system prompt string.
         """
+        # ── Cache key: tuple of all inputs that affect the prompt ─────────────
+        cache_key = (
+            self.resume_text,
+            self.job_description,
+            self.company,
+            self.extra_prompt,
+            self.language,
+            self.simple_language,
+        )
+        # Return cached value if inputs haven't changed
+        if (hasattr(self, "_cached_system_prompt")
+                and hasattr(self, "_cached_system_prompt_key")
+                and self._cached_system_prompt_key == cache_key
+                and self._cached_system_prompt is not None):
+            return self._cached_system_prompt
+
         # ── Core persona ──────────────────────────────────────────────────────
         parts = [
             "You are GlassNote, an expert technical interview assistant operating in real time.",
@@ -137,7 +159,12 @@ class SessionContext:
                 f"{self.extra_prompt.strip()}"
             )
 
-        return "\n\n".join(parts)
+        result = "\n\n".join(parts)
+
+        # Store in cache
+        self._cached_system_prompt     = result
+        self._cached_system_prompt_key = cache_key
+        return result
 
     def add_to_history(self, summary: str, answer: str, screenshots: list = None):
         """

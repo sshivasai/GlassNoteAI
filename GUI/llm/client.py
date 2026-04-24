@@ -42,6 +42,16 @@ import httpx
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from settings import config
 
+# TTFT-OPT: module-level import, avoid repeated disk reads
+# pricing_config was previously imported inside _get_proxy_config() on every
+# stream() call. Moving it here means the import is resolved once at startup.
+try:
+    import pricing_config as _pricing_config
+    _PRICING_CONFIG_AVAILABLE = True
+except ImportError:
+    _pricing_config = None
+    _PRICING_CONFIG_AVAILABLE = False
+
 try:
     from PIL import Image as _PILImage
     _PIL_AVAILABLE = True
@@ -585,16 +595,16 @@ class LLMClient:
         Returns:
             tuple: (proxy_url, proxy_token) or ("", "") if direct mode.
         """
-        import sys, os
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # TTFT-OPT: module-level import, avoid repeated disk reads
+        # Uses module-level _pricing_config instead of importing on every call.
         try:
-            import pricing_config as pricing
-            user_plan = cfg.get("glassnote_user_plan", "free").strip()
-            plan_data = pricing.get_plan(user_plan)
-            if plan_data.get("byok_allowed", False):
-                # BYOK plan — user pays their own API providers directly
-                print(f"[llm] BYOK mode — bypassing proxy (plan={user_plan})")
-                return "", ""
+            if _PRICING_CONFIG_AVAILABLE and _pricing_config is not None:
+                user_plan = cfg.get("glassnote_user_plan", "free").strip()
+                plan_data = _pricing_config.get_plan(user_plan)
+                if plan_data.get("byok_allowed", False):
+                    # BYOK plan — user pays their own API providers directly
+                    print(f"[llm] BYOK mode — bypassing proxy (plan={user_plan})")
+                    return "", ""
         except Exception:
             pass  # pricing_config unavailable — fall through to normal check
 

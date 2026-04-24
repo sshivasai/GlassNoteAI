@@ -104,15 +104,16 @@ class LLMStreamer:
         worker = self._worker
         if worker is None:
             return
+        # TTFT-OPT: detach old worker immediately, don't block 300ms
+        # Previously called worker.wait(300) which blocked the calling thread
+        # for up to 300ms before the new stream could start. Now we signal
+        # cancel and immediately detach — the old worker dies on its own.
         try:
             if worker.isRunning():
                 worker.request_cancel()
-                stopped = worker.wait(300)
-                if not stopped:                              # ← NEW (log warning)
-                    print(
-                        "[llm] StreamWorker did not stop within 300 ms "
-                        "— detaching (it will finish in background)"
-                    )
+                # Do NOT wait — detach immediately so the new stream starts
+                # without any blocking delay. The worker will finish in the
+                # background and its signals are disconnected below.
         except RuntimeError:
             # Qt C++ object already deleted — safe to ignore
             pass

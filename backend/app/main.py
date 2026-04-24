@@ -28,7 +28,7 @@ from app.config import get_settings
 from app.routers import proxy, auth, sessions, usage, billing
 from app.routers import notifications
 from app.routers import public
-from app.routers.proxy import close_pools
+from app.routers.proxy import close_pools, eager_warm_pools
 from app.services.database import create_tables, close_engine
 
 
@@ -57,14 +57,14 @@ async def lifespan(app: FastAPI):
         print(f"[glassnote] ⚠ Database init failed: {e}")
         print("[glassnote]   Ensure PostgreSQL is running and DATABASE_URL is correct")
 
-    # Pre-warm connection pools on startup
-    # This ensures the first user request doesn't pay the TCP+TLS cost
-    print("[glassnote] Pre-warming provider connection pools...")
+    # TTFT-OPT: eager pool warm-up at startup
+    # Pre-warm HTTP/2 connection pools so the first user request does NOT
+    # pay TLS handshake overhead (~80-200 ms per provider).
+    print("[glassnote] Pre-warming provider connection pools (TTFT-OPT)...")
     try:
-        from app.routers.proxy import proxy_health
-        health = await proxy_health()
-        for provider, info in health.get("pools", {}).items():
-            status = info.get("status", "unknown")
+        results = await eager_warm_pools()
+        for provider, info in results.items():
+            status  = info.get("status", "unknown")
             latency = info.get("latency_ms", "?")
             print(f"[glassnote]   {provider}: {status} ({latency}ms)")
     except Exception as e:
