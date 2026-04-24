@@ -130,6 +130,11 @@ class AudioPipeline(QThread):
         # This enables zero-latency interview mode toggle (no pipeline rebuild).
         self._gated: bool = True   # starts gated (paused)
 
+        # ── Pending smart dispatch buffer (Fix 1A — race condition) ────────
+        # If EndOfTurn fires while _gated=True (race: voice gate closed just
+        # before dispatch ran), we buffer the text here and flush on resume().
+        self._pending_smart_dispatch: str = ""
+
         # ── Pre-fetched config (BUG-9 / PERF-2 fix) ───────────────────────────
         # app_controller pre-fetches STT credentials from the backend BEFORE
         # starting the pipeline and injects them here via set_prefetched_config().
@@ -173,7 +178,7 @@ class AudioPipeline(QThread):
 
         # Cache hot-path config values
         self._silence_threshold = float(cfg.get("silence_threshold", 0.8))
-        self._smart_answering   = bool(cfg.get("smart_answering", False))
+        self._smart_answering   = bool(cfg.get("smart_answering", True))    # TTFT-OPT: default True — use EndOfTurn signal, not silence timer
         self._auto_answer       = bool(cfg.get("auto_answer",      True))   # Issue 4a
 
         self._reset_all_state()
@@ -268,6 +273,11 @@ class AudioPipeline(QThread):
         self._gated = False
         self._reset_segment_state()
         self._last_dispatch_time = time.time()
+        # Flush any EndOfTurn that fired while gate was closed
+        if self._pending_smart_dispatch:
+            pending = self._pending_smart_dispatch
+            self._pending_smart_dispatch = ""
+            self._on_smart_dispatch(pending)
         print("[pipeline] ▶ Resumed (gate open — listening for questions)")
 
     def is_running(self) -> bool:
@@ -287,7 +297,7 @@ class AudioPipeline(QThread):
         """
         cfg = config.load_config()
         self._silence_threshold = float(cfg.get("silence_threshold", 0.8))
-        self._smart_answering   = bool(cfg.get("smart_answering", False))
+        self._smart_answering   = bool(cfg.get("smart_answering", True))    # TTFT-OPT: default True — use EndOfTurn signal, not silence timer
         self._auto_answer       = bool(cfg.get("auto_answer",      True))   # Issue 4a
         print(
             f"[pipeline] Config refreshed — "
@@ -425,6 +435,9 @@ class AudioPipeline(QThread):
         # or when smart_answering is disabled — in that case the silence timer
         # is the sole dispatch trigger and this callback must be a no-op.
         if self._gated:
+            # Buffer for dispatch when gate opens (race condition fix)
+            self._pending_smart_dispatch = text.strip()
+            print(f"[pipeline] ⚠️ Smart dispatch buffered (gate closed): '{text[:50]}'")
             return
         if not self._smart_answering:
             return

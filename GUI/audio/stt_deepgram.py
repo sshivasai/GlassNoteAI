@@ -419,13 +419,25 @@ class DeepgramStreamingSTT:
         V2 (flux) endpoints do NOT support KeepAlive — only CloseStream and
         Configure are valid.  Sending KeepAlive to flux causes:
           "unknown variant `KeepAlive`, expected `CloseStream` or `Configure`"
-        followed by a 1005 disconnect.  For flux we skip the send entirely;
-        the continuous audio stream itself keeps the connection alive.
+        followed by a 1005 disconnect.  For flux we use WebSocket protocol-level
+        ping frames (RFC 6455 opcode 0x9) instead — these are transport-level
+        and not interpreted by the Deepgram application layer.
 
-        Interval: 8 s  (well within the 60 s server timeout, low overhead).
+        Interval: 8 s for nova, 30 s for flux (well within the 60 s server timeout).
         """
         if is_flux:
-            # Flux endpoint does not accept KeepAlive — exit immediately.
+            # Flux does not accept Deepgram JSON KeepAlive, but DOES accept
+            # WebSocket protocol-level ping frames (RFC 6455 opcode 0x9).
+            # Send a ping every 30s to prevent the 60s server-side timeout.
+            # TTFT-OPT: keepalive prevents reconnect overhead
+            while self._running:
+                _time.sleep(30)
+                if not self._running:
+                    break
+                try:
+                    ws.ping()
+                except Exception:
+                    break
             return
         keepalive_msg = json.dumps({"type": "KeepAlive"})
         while self._running:
