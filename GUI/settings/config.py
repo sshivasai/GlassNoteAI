@@ -32,7 +32,10 @@ DEFAULTS = {
     "selected_provider":  "anthropic",
     "anthropic_model":    "claude-opus-4-5",
     "openai_model":       "gpt-4o",
-    "max_tokens":         256,
+    # User-configurable ceiling. Mode-specific caps in _get_max_tokens()
+    # (e.g. 600 for interview) provide the actual per-request limits via
+    # min(mode_cap, user_cap), so this high default won't overshoot.
+    "max_tokens":         16384,
 
     # ── STT Provider ───────────────────────────────────────────
     # "deepgram"       → DeepgramStreamingSTT  (WebSocket, ultra-low latency)

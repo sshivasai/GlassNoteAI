@@ -30,7 +30,9 @@ Changes in this revision
 import sys
 import os
 import time
+import socket
 import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer, Qt
@@ -474,17 +476,20 @@ class AppController(QObject):
 
     def _warm_stt_connection(self, cfg: dict):              # ← NEW METHOD
         """
-        Pre-warm DNS + TCP + TLS to the configured STT provider.
+        Pre-resolve DNS for STT provider to warm OS DNS cache.
 
-        Fires a lightweight HTTPS GET to the provider's REST API so the
-        kernel's TCP stack has an established connection by the time the
-        WebSocket handshake starts (milliseconds later in start_recording).
+        The previous implementation created a throwaway httpx.Client and did
+        a full HTTPS GET, but the TCP+TLS connection was discarded immediately
+        and NOT reused by the STT WebSocket — so the warm-up was wasted.
+
+        DNS resolution, on the other hand, IS cached by the OS resolver and
+        shared across all libraries (httpx, websockets, etc.).  A single
+        socket.getaddrinfo() call populates the OS DNS cache so the WebSocket
+        handshake skips the DNS lookup (~50-200 ms saved).
 
         Provider behaviour:
-          deepgram        → GET api.deepgram.com/v1/models
-          openai_realtime → GET api.openai.com/v1/models
-                            (already warm if LLM provider is also OpenAI;
-                             httpx connection pool reuses it — < 1 ms)
+          deepgram        → pre-resolve api.deepgram.com
+          openai_realtime → pre-resolve api.openai.com
 
         Always non-blocking — runs in a daemon thread.
         Failures are non-fatal and logged only; recording still starts.
@@ -493,47 +498,29 @@ class AppController(QObject):
 
         def _warm():
             try:
-                import httpx
                 t0 = time.time()
+                hosts = []
 
                 if stt_provider == "deepgram":
-                    api_key = cfg.get("deepgram_api_key", "").strip()
-                    if not api_key:
-                        return
-                    with httpx.Client(
-                        http2=True,
-                        timeout=httpx.Timeout(6.0, connect=5.0),
-                    ) as c:
-                        r = c.get(
-                            "https://api.deepgram.com/v1/models",
-                            headers={"Authorization": f"Token {api_key}"},
-                        )
-                    ms = (time.time() - t0) * 1_000
-                    print(
-                        f"[app] ✓ STT warm — deepgram "
-                        f"{ms:.0f} ms  (status={r.status_code})"
-                    )
-
+                    hosts.append("api.deepgram.com")
                 elif stt_provider == "openai_realtime":
-                    api_key = cfg.get("openai_api_key", "").strip()
-                    if not api_key:
-                        return
-                    with httpx.Client(
-                        http2=True,
-                        timeout=httpx.Timeout(6.0, connect=5.0),
-                    ) as c:
-                        r = c.get(
-                            "https://api.openai.com/v1/models",
-                            headers={"Authorization": f"Bearer {api_key}"},
-                        )
-                    ms = (time.time() - t0) * 1_000
-                    print(
-                        f"[app] ✓ STT warm — openai_realtime "
-                        f"{ms:.0f} ms  (status={r.status_code})"
-                    )
+                    hosts.append("api.openai.com")
+                else:
+                    # Unknown provider — try both as best-effort
+                    hosts.append("api.deepgram.com")
+                    hosts.append("api.openai.com")
+
+                for host in hosts:
+                    socket.getaddrinfo(host, 443, socket.AF_INET, socket.SOCK_STREAM)
+
+                ms = (time.time() - t0) * 1_000
+                print(
+                    f"[app] ✓ STT DNS pre-resolved — {', '.join(hosts)} "
+                    f"{ms:.0f} ms"
+                )
 
             except Exception as e:
-                print(f"[app] STT warm failed (non-fatal): {e}")
+                print(f"[app] STT DNS pre-resolve failed (non-fatal): {e}")
 
         threading.Thread(
             target=_warm,
@@ -624,8 +611,10 @@ class AppController(QObject):
             return
 
         age       = self._audio.get_last_transcript_age()
-        cfg       = config.load_config()
-        threshold = float(cfg.get("silence_threshold", 1.5))
+        # PERF: Read threshold from pipeline's cached value instead of
+        # calling config.load_config() every 100 ms (disk I/O on hot path).
+        # AudioPipeline caches this in _silence_threshold on start and refresh_config().
+        threshold = getattr(self._audio, '_silence_threshold', 1.5)
         self.pill.update_ticker_silence(age, threshold)
 
         # pipeline.check_silence_and_dispatch() handles all guards internally.
@@ -976,51 +965,78 @@ class AppController(QObject):
         self._warm_stt_connection(cfg)
 
         def _prefetch_stt_and_start():
-            """Pre-fetch STT credentials then start pipeline (BUG-9/PERF-2)."""
+            """Pre-fetch STT credentials then start pipeline (BUG-9/PERF-2).
+
+            PERF-7: /api/auth/me and /v1/proxy/stt-credentials are now fired
+            in parallel using ThreadPoolExecutor, saving ~200-500 ms on
+            session startup (previously sequential).
+            """
             cfg2 = config.load_config()
             plan = cfg2.get("glassnote_user_plan", "free").strip() or "free"
             is_byok = (plan == "byok")
 
             try:
-                # PERF-5: Populate /api/auth/me cache for session duration
-                try:
-                    import httpx as _httpx
-                    from api.auth_client import _keyring_load
-                    token   = _keyring_load() or cfg2.get("glassnote_api_token", "")
-                    api_url = cfg2.get("glassnote_api_url", "").rstrip("/")
-                    if token and api_url:
+                import httpx as _httpx
+                from api.auth_client import _keyring_load
+                token   = _keyring_load() or cfg2.get("glassnote_api_token", "")
+                api_url = cfg2.get("glassnote_api_url", "").rstrip("/")
+
+                # ── Helper: fetch /api/auth/me ──────────────────────────────
+                def _fetch_auth_me():
+                    """Fetch and cache user info from /api/auth/me."""
+                    if not (token and api_url):
+                        return None
+                    try:
                         r_me = _httpx.get(
                             f"{api_url}/api/auth/me",
                             headers={"Authorization": f"Bearer {token}"},
                             timeout=5.0,
                         )
                         if r_me.status_code == 200:
-                            self._cached_user_info = r_me.json()
-                            print(f"[app] /api/auth/me cached (plan={self._cached_user_info.get('plan','?')})")
-                except Exception as e:
-                    print(f"[app] /api/auth/me cache failed (non-fatal): {e}")
+                            data = r_me.json()
+                            print(f"[app] /api/auth/me cached (plan={data.get('plan','?')})")
+                            return data
+                    except Exception as e:
+                        print(f"[app] /api/auth/me cache failed (non-fatal): {e}")
+                    return None
 
-                if not is_byok:
+                # ── Helper: fetch /v1/proxy/stt-credentials ─────────────────
+                def _fetch_stt_creds():
+                    """Fetch STT credentials from proxy."""
+                    if is_byok or not (token and api_url):
+                        return None
                     try:
-                        token   = _keyring_load() or cfg2.get("glassnote_api_token", "")
-                        api_url = cfg2.get("glassnote_api_url", "").rstrip("/")
-                        if token and api_url:
-                            r = _httpx.get(
-                                f"{api_url}/v1/proxy/stt-credentials",
-                                headers={"Authorization": f"Bearer {token}"},
-                                timeout=8.0,
-                            )
-                            if r.status_code == 200:
-                                data = r.json()
-                                if data.get("deepgram_key"):
-                                    cfg2["deepgram_api_key"] = data["deepgram_key"]
-                                if data.get("openai_key"):
-                                    cfg2["openai_api_key"] = data["openai_key"]
-                                print(f"[app] STT credentials pre-fetched (plan={plan})")
-                            else:
-                                print(f"[app] STT credentials pre-fetch failed ({r.status_code}) — using local keys")
+                        r = _httpx.get(
+                            f"{api_url}/v1/proxy/stt-credentials",
+                            headers={"Authorization": f"Bearer {token}"},
+                            timeout=8.0,
+                        )
+                        if r.status_code == 200:
+                            data = r.json()
+                            print(f"[app] STT credentials pre-fetched (plan={plan})")
+                            return data
+                        else:
+                            print(f"[app] STT credentials pre-fetch failed ({r.status_code}) — using local keys")
                     except Exception as e:
                         print(f"[app] STT credentials pre-fetch error: {e} — using local keys")
+                    return None
+
+                # ── Fire both requests in parallel ──────────────────────────
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    fut_me    = pool.submit(_fetch_auth_me)
+                    fut_creds = pool.submit(_fetch_stt_creds)
+                    me_result    = fut_me.result()
+                    creds_result = fut_creds.result()
+
+                # ── Apply results ───────────────────────────────────────────
+                if me_result is not None:
+                    self._cached_user_info = me_result
+
+                if creds_result is not None:
+                    if creds_result.get("deepgram_key"):
+                        cfg2["deepgram_api_key"] = creds_result["deepgram_key"]
+                    if creds_result.get("openai_key"):
+                        cfg2["openai_api_key"] = creds_result["openai_key"]
 
                 # Inject pre-fetched credentials into pipeline config before start
                 self._audio.set_prefetched_config(cfg2)
