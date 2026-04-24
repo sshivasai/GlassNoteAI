@@ -270,11 +270,9 @@ class _ConnectionPool:
         self._lock               = threading.Lock()
         self._anthropic_client:  Optional[httpx.Client] = None
         self._openai_client:     Optional[httpx.Client] = None
-        self._cerebras_client:   Optional[httpx.Client] = None
         self._proxy_client:      Optional[httpx.Client] = None
         self._last_anthropic_key = ""
         self._last_openai_key    = ""
-        self._last_cerebras_key  = ""
         self._last_proxy_url     = ""
 
         self._heartbeat_active   = False
@@ -320,19 +318,6 @@ class _ConnectionPool:
                 self._last_openai_key = api_key
             return self._openai_client
 
-    def get_cerebras(self, api_key: str) -> httpx.Client:
-        with self._lock:
-            if (self._cerebras_client is None
-                    or api_key != self._last_cerebras_key):
-                if self._cerebras_client:
-                    try:
-                        self._cerebras_client.close()
-                    except Exception:
-                        pass
-                self._cerebras_client   = self._make_client()
-                self._last_cerebras_key = api_key
-            return self._cerebras_client
-
     def start_heartbeat(self, api_key: str, provider: str):
         if self._heartbeat_active:
             return
@@ -365,17 +350,6 @@ class _ConnectionPool:
                         if c:
                             c.get(
                                 "https://api.openai.com/v1/models",
-                                headers={
-                                    "Authorization":
-                                        f"Bearer {self._heartbeat_api_key}"
-                                },
-                                timeout=5.0,
-                            )
-                    elif provider == "cerebras":
-                        c = self._cerebras_client
-                        if c:
-                            c.get(
-                                "https://api.cerebras.ai/v1/models",
                                 headers={
                                     "Authorization":
                                         f"Bearer {self._heartbeat_api_key}"
@@ -415,7 +389,7 @@ class _ConnectionPool:
     def invalidate(self):
         self.stop_heartbeat()
         with self._lock:
-            for c in (self._anthropic_client, self._openai_client, self._cerebras_client, self._proxy_client):
+            for c in (self._anthropic_client, self._openai_client, self._proxy_client):
                 if c:
                     try:
                         c.close()
@@ -423,11 +397,9 @@ class _ConnectionPool:
                         pass
             self._anthropic_client   = None
             self._openai_client      = None
-            self._cerebras_client    = None
             self._proxy_client       = None
             self._last_anthropic_key = ""
             self._last_openai_key    = ""
-            self._last_cerebras_key  = ""
             self._last_proxy_url     = ""
 
 
@@ -508,7 +480,6 @@ class LLMClient:
     # When in proxy mode, we use dynamic paths that proxy back to our FastAPI edge router
     PROXY_ANTHROPIC_PATH = "/v1/proxy/anthropic"
     PROXY_OPENAI_PATH    = "/v1/proxy/openai"
-    PROXY_CEREBRAS_PATH  = "/v1/proxy/cerebras"
 
     def __init__(self):
         self._cfg:      Optional[dict] = None
@@ -752,12 +723,6 @@ class LLMClient:
                         optimized_images, on_token, cancel_event, mode,
                         proxy_url, proxy_token, "anthropic",
                     )
-                elif provider == "cerebras":
-                    full_text = self._stream_via_proxy(
-                        cfg, model, system_prompt, messages,
-                        optimized_images, on_token, cancel_event, mode,
-                        proxy_url, proxy_token, "cerebras",
-                    )
                 else:
                     full_text = self._stream_via_proxy(
                         cfg, model, system_prompt, messages,
@@ -769,11 +734,6 @@ class LLMClient:
                 full_text = self._stream_anthropic_direct(
                     cfg, model, system_prompt, messages,
                     optimized_images, on_token, cancel_event, mode,
-                )
-            elif provider == "cerebras":
-                # Cerebras doesn't support BYOK (direct mode) - users must go through proxy
-                raise RuntimeError(
-                    "Cerebras requires GlassNote proxy. Ensure you have an active subscription."
                 )
             else:
                 # BYOK mode — direct to OpenAI
@@ -911,7 +871,7 @@ class LLMClient:
         Args:
             proxy_url: Base URL of the proxy (e.g. https://api.glassnote.ai).
             proxy_token: User's JWT token.
-            provider: 'anthropic', 'openai', or 'cerebras'.
+            provider: 'anthropic' or 'openai'.
         """
         http_client = _pool.get_proxy(proxy_url)
         max_tokens  = self._get_max_tokens(cfg, mode)
@@ -932,7 +892,7 @@ class LLMClient:
                               ),
             }
             endpoint = f"{proxy_url}{self.PROXY_ANTHROPIC_PATH}"
-        elif provider == "openai" or provider == "cerebras":
+        elif provider == "openai":
             oai_messages = [{"role": "system", "content": system_prompt}]
             oai_messages.extend(
                 self._build_openai_messages(messages, images)
@@ -943,10 +903,7 @@ class LLMClient:
                 "stream":     True,
                 "max_tokens": max_tokens,
             }
-            if provider == "cerebras":
-                endpoint = f"{proxy_url}{self.PROXY_CEREBRAS_PATH}"
-            else:
-                endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
+            endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
 
         # Headers — only our JWT, proxy handles provider auth
         headers = {

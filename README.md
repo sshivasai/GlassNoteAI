@@ -46,7 +46,6 @@ GlassNote is a real-time AI assistant that runs as a **hidden system-tray applic
 ### ⚡ LLM Integration
 
 - **Providers**: Anthropic (Claude Haiku 4.5, Sonnet 4.5, Opus 4.5) and OpenAI (GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini, GPT-4 Turbo, o1, o1-mini, GPT-5.4 family)
-- **Cerebras** support via proxy (ultra-fast inference)
 - **Auto model routing** — Automatically selects fast/balanced/best model based on question complexity
 - **Proxy mode (SaaS)** — Routes LLM/STT calls through `api.glassnote.ai`; no provider API keys needed
 - **BYOK mode** — Direct calls to Anthropic/OpenAI using your own API keys; data never touches GlassNote servers
@@ -157,7 +156,6 @@ GlassNote is a three-component system:
 | **Anthropic** | Claude Haiku 4.5, Sonnet 4.5, Opus 4.5 |
 | **OpenAI** | GPT-4o, GPT-4.1, GPT-4 Turbo, o1, o1-mini, GPT-5.4 family; Realtime API for STT |
 | **Deepgram** | nova-3, nova-2 (STT) |
-| **Cerebras** | Ultra-fast inference via proxy |
 
 ---
 

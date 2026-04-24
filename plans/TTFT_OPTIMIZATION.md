@@ -95,14 +95,12 @@
 
 ## Remaining Opportunities
 
-1. **Cerebras proxy endpoint** — `backend/app/routers/proxy.py` needs a `/v1/proxy/cerebras` route (client already references it). Deferred pending `CEREBRAS_API_KEY` environment variable setup.
+1. **Move screenshot capture off main Qt thread** — `_on_capture()` and `_on_analyze()` call `capture_fullscreen()` on the UI thread. Moving to a background thread would free the UI during capture.
 
-2. **Move screenshot capture off main Qt thread** — `_on_capture()` and `_on_analyze()` call `capture_fullscreen()` on the UI thread. Moving to a background thread would free the UI during capture.
+2. **Pre-warm LLM provider TCP+TLS** — The `_speculative_warm()` already does this, but could be more aggressive (e.g., keep a persistent `httpx.Client` pool alive between requests).
 
-3. **Pre-warm LLM provider TCP+TLS** — The `_speculative_warm()` already does this, but could be more aggressive (e.g., keep a persistent `httpx.Client` pool alive between requests).
+3. **Reduce conversation history size** — `session.get_history_context()` can produce large message arrays for long sessions. Consider truncating or summarizing older messages.
 
-4. **Reduce conversation history size** — `session.get_history_context()` can produce large message arrays for long sessions. Consider truncating or summarizing older messages.
+4. **Use `orjson` instead of `json`** — For SSE parsing in the streaming path, `orjson.loads()` is ~3-5x faster than `json.loads()`.
 
-5. **Use `orjson` instead of `json`** — For SSE parsing in the streaming path, `orjson.loads()` is ~3-5x faster than `json.loads()`.
-
-6. **WebSocket connection pooling for STT** — Pre-connect the STT WebSocket during session warm-up instead of on first audio chunk.
+5. **WebSocket connection pooling for STT** — Pre-connect the STT WebSocket during session warm-up instead of on first audio chunk.
