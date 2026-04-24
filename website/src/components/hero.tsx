@@ -37,13 +37,13 @@ export function Hero() {
           Your Invisible
           <br />
           <span className="bg-gradient-to-r from-[var(--cyan)] via-[var(--lime)] to-[var(--cyan)] bg-clip-text text-transparent">
-            AI Interview Companion
+            AI Meeting Companion
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-xl text-[var(--text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed animate-fade-in" style={{ animationDelay: "0.2s" }}>
-          GlassNote listens to your interview, captures your screen, and delivers real-time AI answers through a transparent overlay that only you can see.
+          GlassNote listens to your meeting, captures your screen, and delivers real-time AI answers through a transparent overlay that only you can see.
         </p>
 
         {/* CTA Buttons */}
@@ -76,7 +76,7 @@ export function Hero() {
               <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]" />
               <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-[0_0_5px_rgba(234,179,8,0.5)]" />
               <div className="w-3 h-3 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-              <span className="text-xs text-[var(--text-muted)] ml-auto font-mono">GlassNote — Active Session</span>
+              <span className="text-xs text-[var(--text-muted)] ml-auto font-mono">GlassNote — Active Meeting</span>
             </div>
 
             {/* Content */}
@@ -123,7 +123,7 @@ export function Hero() {
               {activeTab === 'stt' && (
                 <div className="flex-1 p-4 flex flex-col gap-3 text-left">
                   <div className="bg-[rgba(0,0,0,0.3)] border border-[var(--border)] rounded-lg p-3">
-                    <div className="text-xs font-bold text-[var(--text-muted)] mb-2 tracking-widest">INTERVIEWER</div>
+                    <div className="text-xs font-bold text-[var(--text-muted)] mb-2 tracking-widest">SPEAKER</div>
                     <div className="text-sm text-[var(--text-secondary)] font-mono">Design a rate limiter for a distributed API gateway...</div>
                   </div>
                   <div className="bg-[rgba(0,217,255,0.05)] border border-[rgba(0,217,255,0.15)] rounded-lg p-3 flex-1 relative overflow-hidden">

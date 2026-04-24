@@ -4,9 +4,9 @@ import { AuthProvider } from "@/lib/auth-context";
 import { AuthModal } from "@/components/auth/auth-modal";
 
 export const metadata: Metadata = {
-  title: "GlassNote — AI-Powered Interview Assistant",
-  description: "GlassNote is an invisible AI interview companion that listens to your conversation, captures your screen, and provides real-time answers through a transparent overlay. Powered by Claude & GPT.",
-  keywords: "AI interview assistant, interview prep, real-time AI, coding interview, GlassNote",
+  title: "GlassNote — AI-Powered Meeting Assistant",
+  description: "GlassNote is an invisible AI meeting companion that listens to your conversation, captures your screen, and provides real-time answers through a transparent overlay. Powered by Claude & GPT.",
+  keywords: "AI meeting assistant, meeting prep, real-time AI, coding meeting, GlassNote",
 };
 
 export default function RootLayout({

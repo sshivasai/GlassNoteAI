@@ -22,7 +22,7 @@ const AILogos = (props: React.SVGProps<SVGSVGElement>) => (
 
 const GhostIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M12 2C8.686 2 6 4.686 6 8v14l3-3 3 3 3-3 3 3V8c0-3.314-2.686-6-6-6z" opacity="0.8"/>
+    <path d="M12 2C8.686 2 6 4.686 6 8v14l3-3 3 3 3-3 3 3V8c0-3.314-2.686-6-6-6z" opacity="0.8" />
   </svg>
 );
 
@@ -42,7 +42,7 @@ const features = [
   {
     icon: DeepgramIcon,
     title: "Real-Time Transcription",
-    description: "Listens to your interview conversation via system audio or microphone. Supports Deepgram and OpenAI Realtime STT with ultra-low latency.",
+    description: "Listens to your meeting conversation via system audio or microphone. Supports Deepgram and OpenAI Realtime STT with ultra-low latency.",
   },
   {
     icon: ScreenIcon,
@@ -80,7 +80,7 @@ export function Features() {
             <span className="text-xs font-bold text-[var(--cyan)] tracking-widest uppercase">Features</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-            Everything you need to<br />ace your interview
+            Everything you need to<br />ace your meeting
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
             GlassNote combines real-time audio transcription, screen analysis, and AI reasoning into a seamless invisible overlay.

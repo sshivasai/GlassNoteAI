@@ -655,7 +655,7 @@ class AppController(QObject):
         messages.append({
             "role":    "user",
             "content": (
-                f"The interviewer just said:\n\n\"{transcript}\"\n\n"
+                f"The other person just said:\n\n\"{transcript}\"\n\n"
                 "Please provide a clear, structured answer I can speak naturally."
             ),
         })
@@ -1112,7 +1112,7 @@ class AppController(QObject):
                 "content": (
                     "Please analyze the provided screenshot(s) and solve the problem."
                     if images else
-                    "Please help me with this interview question."
+                    "Please help me with this question."
                 ),
             })
 

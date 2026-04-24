@@ -33,7 +33,7 @@ export function Footer() {
               <span className="text-lg font-bold text-white">GlassNote</span>
             </div>
             <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-              AI-powered invisible interview companion. Real-time answers through a transparent overlay that only you can see.
+              AI-powered invisible meeting companion. Real-time answers through a transparent overlay that only you can see.
             </p>
           </div>
 

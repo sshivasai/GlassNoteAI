@@ -242,7 +242,7 @@ export default function UsagePage() {
           Usage History
         </h1>
         <p className="text-[var(--text-secondary)]">
-          Review your past interview sessions. Click any row to see details.
+          Review your past meeting sessions. Click any row to see details.
         </p>
       </div>
 
@@ -275,7 +275,7 @@ export default function UsagePage() {
         <div className="text-center py-16 text-[var(--text-muted)]">
           <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="text-lg font-medium">No sessions yet</p>
-          <p className="text-sm mt-1">Your interview sessions will appear here once you start using GlassNote.</p>
+          <p className="text-sm mt-1">Your meeting sessions will appear here once you start using GlassNote.</p>
         </div>
       ) : (
         <div className="rounded-xl border border-[var(--border)] overflow-hidden">

@@ -12,7 +12,7 @@ export function HowItWorks() {
     },
     {
       number: 3,
-      title: "Start Interview",
+      title: "Start Meeting",
       description: "GlassNote listens via system audio and captures your screen. Hit a hotkey when you need help.",
     },
     {
@@ -33,7 +33,7 @@ export function HowItWorks() {
             Set up in 60 seconds
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            No complex configuration needed. Just download, add your API key or sign in, and start your interview session.
+            No complex configuration needed. Just download, add your API key or sign in, and start your meeting session.
           </p>
         </div>
 
