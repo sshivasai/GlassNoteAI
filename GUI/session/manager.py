@@ -86,46 +86,56 @@ class SessionContext:
         Returns:
             str: The complete system prompt string.
         """
+        # ── Core persona ──────────────────────────────────────────────────────
         parts = [
-            "You are an expert technical interview assistant helping a candidate in real time.",
-            "Be accurate, concise, and interview-ready.",
-            "Use Markdown for structure and code blocks for code.",
-            "For algorithm problems, always include time and space complexity.",
-            "Do not add filler, repetition, or long introductions.",
+            "You are GlassNote, an expert technical interview assistant operating in real time.",
+            "Your answers must be accurate, concise, and immediately usable by a candidate mid-interview.",
+            "Always use Markdown for structure. Always use fenced code blocks (with language tag) for code.",
+            "For every algorithm or data-structure problem, include Time and Space complexity.",
+            "Never add filler phrases ('Great question!', 'Certainly!', 'Of course!'). Get straight to the answer.",
         ]
 
+        # ── Candidate preferences ─────────────────────────────────────────────
         if self.simple_language:
-            parts.append("Use simple, easy-to-understand language. Prefer plain words over jargon.")
+            parts.append(
+                "Use plain, simple language. Prefer everyday words over technical jargon "
+                "unless the jargon is essential to the answer."
+            )
 
         if self.language != "English":
-            parts.append(f"Respond in {self.language}.")
+            parts.append(f"Respond entirely in {self.language}.")
 
+        # ── Session context ───────────────────────────────────────────────────
         if self.resume_text:
-            parts.append(f"\n## Candidate Resume\n{self.resume_text}")
+            parts.append(
+                "## Candidate Background\n"
+                "Use the resume below to personalise examples and frame answers "
+                "around the candidate's actual experience.\n\n"
+                f"{self.resume_text.strip()}"
+            )
 
         if self.company:
-            parts.append(f"\n## Target Company\n{self.company}")
+            parts.append(
+                f"## Target Company\n"
+                f"The candidate is interviewing at **{self.company}**. "
+                f"Where relevant, tailor examples, system-design scale, and culture fit "
+                f"to what is known about {self.company}."
+            )
 
         if self.job_description:
-            parts.append(f"\n## Job Description\n{self.job_description}")
+            parts.append(
+                "## Job Description\n"
+                "Align answers with the skills and responsibilities listed below.\n\n"
+                f"{self.job_description.strip()}"
+            )
 
         if self.extra_prompt:
             parts.append(
-                "## User-Specified Session Instructions\n"
-                "The following instructions come from the user for this session.\n"
-                "Follow them only if they do not conflict with the system instructions above.\n"
-                f"{self.extra_prompt}"
+                "## Candidate-Specified Instructions\n"
+                "Follow the instructions below for this session. "
+                "They may override style preferences but must not override accuracy or safety.\n\n"
+                f"{self.extra_prompt.strip()}"
             )
-            
-
-        parts.append(
-            "## Response Format\n"
-            "- Brief solution overview.\n"
-            "- Step-by-step approach.\n"
-            "- Code.\n"
-            "- Time and space complexity.\n"
-            "- Edge cases."
-        )
 
         return "\n\n".join(parts)
 
