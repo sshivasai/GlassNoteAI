@@ -91,7 +91,7 @@ GlassNote is a three-component system:
 │         ┌──────────────────────────────────────┐               │
 │         │           External AI APIs           │               │
 │         │  Anthropic • OpenAI • Deepgram        │               │
-│         │  Cerebras (via proxy)                 │               │
+│         │                                      │               │
 │         └──────────────────────────────────────┘               │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -102,7 +102,6 @@ GlassNote is a three-component system:
 |---|---|
 | `POST /v1/proxy/anthropic` | Zero-copy SSE proxy → Anthropic |
 | `POST /v1/proxy/openai` | Zero-copy SSE proxy → OpenAI |
-| `POST /v1/proxy/cerebras` | Zero-copy SSE proxy → Cerebras |
 | `GET /v1/proxy/stt-credentials` | STT key distribution |
 | `POST /api/auth/*` | JWT auth, Google OAuth |
 | `POST /api/sessions/*` | Session start/end, quota check |
