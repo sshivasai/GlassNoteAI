@@ -188,7 +188,9 @@ class PillWindow(QWidget):
 
         self._session_clock = QTimer(self)
         self._session_clock.timeout.connect(self._tick_session)
-        self._session_clock.start(1000)
+        # NOTE: do NOT start here — start_session_clock() is called by
+        # app_controller._show_main_ui() so the timer only runs during an
+        # active session, not during the setup window.
 
         self._build_ui()
         self._add_shadow()
@@ -453,6 +455,20 @@ class PillWindow(QWidget):
                 self._reposition_ticker()
 
     # ── Timer ──────────────────────────────────────────────────────────────────
+
+    def start_session_clock(self):
+        """Reset counter and start the session timer. Called by app_controller
+        when the pill is shown at session start."""
+        self._session_secs = 0
+        self._timer_lbl.setText("00:00")
+        self._session_clock.start(1000)
+
+    def stop_session_clock(self):
+        """Stop the session timer and reset the counter. Called by app_controller
+        on session end so a subsequent session always starts from 00:00."""
+        self._session_clock.stop()
+        self._session_secs = 0
+        self._timer_lbl.setText("00:00")
 
     def _tick_session(self):
         self._session_secs += 1

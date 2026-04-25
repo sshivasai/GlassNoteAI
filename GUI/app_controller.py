@@ -338,6 +338,7 @@ class AppController(QObject):
 
     def _show_main_ui(self):
         self.pill.show()
+        self.pill.start_session_clock()   # Bug 1 fix: start timer only when session begins
         self.pill.set_overlay_visible(self.overlay.isVisible())
         cfg = config.load_config()
         if cfg.get("auto_capture", False):
@@ -835,6 +836,7 @@ class AppController(QObject):
         self._pill_shown = False
         self._session_end_time   = 0.0
         self._session_warn_shown = False
+        self.pill.stop_session_clock()    # Bug 1 fix: stop + reset timer on session end
         self.pill.hide()
         self.overlay.hide()
         self.session_status_changed.emit(False, "")
@@ -1084,7 +1086,7 @@ class AppController(QObject):
             return
 
         cfg          = config.load_config()
-        smart        = cfg.get("smart_answering", False)   # ← NEW (read once)
+        smart        = cfg.get("smart_answering", True)    # Bug 2 fix: default True (lean prompt, ~400ms TTFT vs ~2000ms)
         base         = session.build_system_prompt()
 
         # ── Prompt selection ───────────────────────────────────────────────────
