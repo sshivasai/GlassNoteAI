@@ -595,9 +595,10 @@ Setup:
   3. Add API keys in Settings
 
 Required API Keys:
-  - Anthropic (Claude): console.anthropic.com
-  - OpenAI (GPT + Realtime STT): platform.openai.com
-  - Deepgram (optional): deepgram.com
+  - Anthropic (Claude):   console.anthropic.com
+  - OpenAI (GPT + STT):   platform.openai.com
+  - Cerebras (Ultra-Fast): cloud.cerebras.ai
+  - Deepgram (optional):  deepgram.com
 
 Hotkeys:
   Ctrl+Shift+C  Capture screenshot

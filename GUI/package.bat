@@ -16,7 +16,34 @@ if errorlevel 1 (
 
 for /f "tokens=*" %%i in ('python --version') do set PY_VER=%%i
 echo  Found: %PY_VER%
+
+REM ── Detect Python architecture ────────────────────────────────────────────────
+for /f "tokens=*" %%a in ('python -c "import platform; print(platform.machine())"') do set PY_ARCH=%%a
+echo  Architecture: %PY_ARCH%
 echo.
+
+REM ── WARN if building with ARM64 Python ───────────────────────────────────────
+REM  An ARM64 exe only runs on ARM64 Windows.
+REM  An x64 exe runs on BOTH x64 and ARM64 Windows (via emulation).
+REM  For maximum compatibility, build with x64 Python.
+if /i "%PY_ARCH%"=="ARM64" (
+    echo  *** ARCHITECTURE WARNING ***
+    echo.
+    echo  You are using ARM64 Python. This will produce an ARM64 .exe
+    echo  that ONLY runs on ARM64 Windows machines.
+    echo.
+    echo  For an .exe that works on ALL Windows machines (x64 + ARM64^):
+    echo    1. Install x64 Python 3.11 from https://python.org/downloads/
+    echo       (Choose "Windows installer (64-bit)" — NOT ARM64)
+    echo    2. Re-run this script using that Python version.
+    echo    Note: ARM64 Windows runs x64 .exe files via built-in emulation.
+    echo.
+    echo  Press any key to continue anyway with ARM64, or close to cancel.
+    pause
+    echo.
+    echo  Continuing ARM64 build...
+    echo.
+)
 
 REM ── Navigate to script directory ─────────────────────────────────────────────
 cd /d "%~dp0"
@@ -43,8 +70,36 @@ REM ── Upgrade pip silently ────────────────
 echo  Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
-REM ── Install all dependencies ──────────────────────────────────────────────────
-echo  Installing dependencies from requirements.txt...
+REM ── FIX: Install sounddevice 0.4.6 FIRST ─────────────────────────────────────
+REM  sounddevice 0.5.x ships a broken PortAudio DLL on Windows ARM64 and
+REM  some x64 machines (upstream packaging bug — error 0x7e on import).
+REM  0.4.6 has correct binaries for both architectures.
+echo  Installing sounddevice 0.4.6 (PortAudio stability fix)...
+pip install "sounddevice==0.4.6" --quiet
+if errorlevel 1 (
+    echo [ERROR] Failed to install sounddevice 0.4.6.
+    call deactivate
+    pause
+    exit /b 1
+)
+
+REM ── Verify PortAudio loads ────────────────────────────────────────────────────
+echo  Verifying PortAudio DLL loads...
+python -c "import sounddevice" 2>nul
+if errorlevel 1 (
+    echo.
+    echo [ERROR] PortAudio DLL failed to load.
+    echo  This is an ARM64/x64 DLL mismatch. Try building with x64 Python instead.
+    echo  Download: https://www.python.org/downloads/ (pick "Windows installer 64-bit")
+    echo.
+    call deactivate
+    pause
+    exit /b 1
+)
+echo   OK
+
+REM ── Install all remaining dependencies ───────────────────────────────────────
+echo  Installing remaining dependencies from requirements.txt...
 pip install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [ERROR] Dependency installation failed.
@@ -67,14 +122,20 @@ echo.
 if %BUILD_EXIT% equ 0 (
     echo ============================================================
     echo  BUILD SUCCESSFUL
-    echo  Exe:      dist\svchost_audio.exe
-    echo  Installer: dist\GlassNote_Setup.iss
+    echo  Architecture: %PY_ARCH%
+    echo  Exe:          dist\svchost_audio.exe
+    echo  Installer:    dist\GlassNote_Setup.iss
+    echo.
+    if /i "%PY_ARCH%"=="ARM64" (
+        echo  NOTE: This ARM64 exe only runs on ARM64 Windows.
+        echo  For an exe that works on ALL Windows, rebuild with x64 Python.
+    ) else (
+        echo  This x64 exe runs on both x64 and ARM64 Windows.
+    )
     echo.
     echo  Next steps:
-    echo    1. Download vc_redist.x64.exe into the dist\ folder
-    echo       https://aka.ms/vs/17/release/vc_redist.x64.exe
-    echo    2. Install Inno Setup: https://jrsoftware.org/isinfo.php
-    echo    3. Run: iscc "dist\GlassNote_Setup.iss"
+    echo    1. Install Inno Setup: https://jrsoftware.org/isinfo.php
+    echo    2. Run: iscc "dist\GlassNote_Setup.iss"
     echo ============================================================
 ) else (
     echo ============================================================
