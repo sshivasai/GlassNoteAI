@@ -31,6 +31,8 @@ ALL_MODELS = [
     ("GPT-5.4  [OpenAI — Best]",               "openai",    "gpt-5.4"),
     ("GPT-5.4 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-5.4-nano"),
     ("GPT-4.1 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-4.1-nano"),
+    ("Llama 3.1 8B  [Cerebras — Ultra Fast]",   "cerebras",  "llama3.1-8b"),
+    ("GPT-OSS 120B  [Cerebras — Fast]",         "cerebras",  "gpt-oss-120b"),
 ]
 
 _BASIC_MODEL_IDS = {
@@ -40,6 +42,7 @@ _BASIC_MODEL_IDS = {
     "gpt-4.1-nano",
     "gpt-5.4-nano",
     "llama-3.2-1b-instant",
+    "llama3.1-8b",
 }
 
 _STANDARD_MODEL_IDS = _BASIC_MODEL_IDS | {
@@ -48,6 +51,7 @@ _STANDARD_MODEL_IDS = _BASIC_MODEL_IDS | {
     "gpt-4.1",
     "gpt-4-turbo",
     "gpt-5.4-mini",
+    "gpt-oss-120b",
 }
 
 _ALL_MODEL_IDS = _STANDARD_MODEL_IDS | {
