@@ -75,7 +75,7 @@ _FALLBACK_PLANS = {
         "badge_color": "#888888", "sort_order": 0,
     },
     "base": {
-        "display_name": "Base", "tagline": "For regular interview prep",
+        "display_name": "Base", "tagline": "For regular meeting prep",
         "price_monthly": 2900, "price_display": "$29/mo", "price_type": "subscription",
         "stripe_price_id": "price_base_monthly",
         "sessions_per_month": 15, "sessions_lifetime": False,

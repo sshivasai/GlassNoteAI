@@ -1,6 +1,6 @@
 # GlassNote
 
-Real-time technical interview assistance. Invisible to screen share, taskbar, Alt+Tab, and Task Manager.
+Real-time technical meeting assistance. Invisible to screen share, taskbar, Alt+Tab, and Task Manager.
 
 ---
 
@@ -15,12 +15,12 @@ pip install -r requirements.txt
 Run the app → right-click tray icon → Settings → API Keys
 
 - **Anthropic key** — for Claude (problem solving)
-- **OpenAI key** — for Whisper transcription (interview audio mode)
+- **OpenAI key** — for Whisper transcription (meeting audio mode)
   - You only need OpenAI if you use `Ctrl+Shift+I` audio mode
   - If you only use screenshot modes, Anthropic key alone is enough
 
 ### 3. Enable WASAPI Loopback (for audio mode)
-For `Ctrl+Shift+I` to capture the interviewer's voice from Zoom/Meet:
+For `Ctrl+Shift+I` to capture the other person's voice from Zoom/Meet:
 
 1. Right-click speaker icon → Sound settings → More sound settings
 2. Recording tab → right-click empty area → Show Disabled Devices
@@ -55,7 +55,7 @@ No taskbar entry. No Alt+Tab entry.
 3. Select model and language → **Create Session**
 4. Pill toolbar appears (invisible to screen share)
 
-### During the interview
+### During the meeting
 
 | Hotkey | Action |
 |---|---|
@@ -84,9 +84,9 @@ No taskbar entry. No Alt+Tab entry.
 Ctrl+Shift+A  — single shot: capture + solve immediately
 ```
 
-**Spoken interview question:**
+**Spoken meeting question:**
 ```
-1. Ctrl+Shift+I  — start recording (interviewer speaks)
+1. Ctrl+Shift+I  — start recording (other person speaks)
 2. Ctrl+Shift+I  — stop → Whisper transcribes → LLM answers
 ```
 

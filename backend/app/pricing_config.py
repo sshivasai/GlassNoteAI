@@ -97,7 +97,7 @@ PLANS = {
     },
     "base": {
         "display_name":             "Base",
-        "tagline":                  "For regular interview prep",
+        "tagline":                  "For regular meeting prep",
         "price_monthly":            29_00,
         "price_display":            "$29/mo",
         "price_type":               "subscription",

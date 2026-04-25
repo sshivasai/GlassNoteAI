@@ -21,8 +21,8 @@ function getPlanFeatureLines(plan: Plan): string[] {
     plan.sessions_per_month >= 9999
       ? "Unlimited sessions"
       : plan.sessions_lifetime
-      ? `${plan.sessions_per_month} lifetime sessions (no reset)`
-      : `${plan.sessions_per_month} sessions per month`;
+        ? `${plan.sessions_per_month} lifetime sessions (no reset)`
+        : `${plan.sessions_per_month} sessions per month`;
   lines.push(sessions);
 
   // Duration
@@ -110,7 +110,7 @@ const FALLBACK_PLANS: Plan[] = [
   {
     id: "base",
     display_name: "Base",
-    tagline: "For regular interview prep",
+    tagline: "For regular meeting prep",
     price_monthly: 2900,
     price_display: "$29/mo",
     price_type: "subscription",
@@ -190,8 +190,8 @@ export async function Pricing() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto perspective-1000">
           {plans.map((plan, i) => {
             const isPopular = plan.id === popularId;
-            const features  = getPlanFeatureLines(plan);
-            const cta       = getPlanCTA(plan);
+            const features = getPlanFeatureLines(plan);
+            const cta = getPlanCTA(plan);
 
             // Display price: price_monthly is in cents
             const priceDisplay = plan.price_display;
@@ -199,11 +199,10 @@ export async function Pricing() {
             return (
               <div
                 key={plan.id}
-                className={`relative p-8 rounded-2xl border flex flex-col h-full card-3d glass-panel ${
-                  isPopular
+                className={`relative p-8 rounded-2xl border flex flex-col h-full card-3d glass-panel ${isPopular
                     ? "border-[var(--cyan)] shadow-[0_0_40px_rgba(79,142,247,0.15)] md:-translate-y-4 md:scale-105 z-10"
                     : "border-[var(--border)] hover:border-[var(--border-glow)]"
-                }`}
+                  }`}
                 style={{
                   animation: `fadeIn 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards`,
                   animationDelay: `${i * 0.1}s`,

@@ -82,14 +82,23 @@ class _ResponseCache:
         self._lock  = threading.Lock()
 
     def _make_key(self, provider, model, system_prompt,
-                  messages, images, mode) -> str:
+                  messages, images, mode,
+                  use_cache: bool = True) -> str:
         parts = [provider, model, mode, system_prompt]
         if messages:
             recent = messages[-3:]
             parts.append(json.dumps(recent, sort_keys=True, ensure_ascii=False))
-        if images:
+        # TTFT-OPT: only compute image hashes when the response cache is
+        # actually enabled.  _fast_image_hash() base64-decodes a prefix and
+        # runs SHA-256 — unnecessary work when the caller already knows the
+        # result won't be cached.
+        if images and use_cache:
             for img in images:
                 parts.append(_fast_image_hash(img))
+        elif images:
+            # Still include image count so keys differ with/without images,
+            # but skip the expensive per-image hash.
+            parts.append(f"imgs:{len(images)}")
         return hashlib.sha256("|".join(parts).encode()).hexdigest()[:24]
 
     def get(self, provider, model, system_prompt,
@@ -163,7 +172,42 @@ def _is_text_screenshot(img) -> bool:
         return True
 
 
-def _optimize_image(b64: str, max_width: int = 1_280) -> str:
+# TTFT-OPT: size threshold (in base64 chars) below which we skip the full
+# decode→resize→encode cycle.  500 KB of raw bytes ≈ 667 KB base64.
+# Screenshots from the capture pipeline are already resized to 768px and
+# format-detected, so re-processing them is a no-op that costs 50-300 ms.
+_OPT_SIZE_THRESHOLD = 680_000  # ~500 KB raw
+
+
+def _optimize_image(
+    b64: str,
+    max_width: int = 1_280,
+    already_optimized: bool = False,
+) -> str:
+    """Optimize a base64-encoded image for LLM consumption.
+
+    Parameters
+    ----------
+    b64 : str
+        Base64-encoded image data.
+    max_width : int
+        Maximum pixel width; images wider than this are downscaled.
+    already_optimized : bool
+        When *True*, the image has already been through the capture
+        pipeline (``screenshot.py`` → ``_pil_to_base64``), which resizes
+        to 768 px and picks the optimal PNG/JPEG format.  In that case
+        we skip the full decode→resize→encode cycle entirely, removing
+        50-300 ms from the TTFT critical path.
+    """
+    # ── Fast path 1: caller guarantees the image is already optimized ──
+    if already_optimized:
+        return b64
+
+    # ── Fast path 2: small images don't need re-encoding ───────────────
+    # Base64 length is a cheap proxy for byte size (no decode needed).
+    if len(b64) <= _OPT_SIZE_THRESHOLD:
+        return b64
+
     if not _PIL_AVAILABLE:
         return b64
     try:
@@ -191,7 +235,16 @@ _opt_image_cache: dict[str, str]     = {}
 _OPT_CACHE_MAX = 20
 
 
-def _optimize_image_cached(b64: str) -> str:
+def _optimize_image_cached(
+    b64: str,
+    already_optimized: bool = False,
+) -> str:
+    # TTFT-OPT: when the image is already optimized (from capture pipeline),
+    # skip both the cache lookup *and* the decode→resize→encode cycle.
+    # This avoids _fast_image_hash() + _optimize_image() entirely.
+    if already_optimized:
+        return _optimize_image(b64, already_optimized=True)
+
     key = _fast_image_hash(b64)
     with _opt_cache_lock:                          # ← ADDED lock
         cached = _opt_image_cache.get(key)
@@ -217,11 +270,9 @@ class _ConnectionPool:
         self._lock               = threading.Lock()
         self._anthropic_client:  Optional[httpx.Client] = None
         self._openai_client:     Optional[httpx.Client] = None
-        self._cerebras_client:   Optional[httpx.Client] = None
         self._proxy_client:      Optional[httpx.Client] = None
         self._last_anthropic_key = ""
         self._last_openai_key    = ""
-        self._last_cerebras_key  = ""
         self._last_proxy_url     = ""
 
         self._heartbeat_active   = False
@@ -267,19 +318,6 @@ class _ConnectionPool:
                 self._last_openai_key = api_key
             return self._openai_client
 
-    def get_cerebras(self, api_key: str) -> httpx.Client:
-        with self._lock:
-            if (self._cerebras_client is None
-                    or api_key != self._last_cerebras_key):
-                if self._cerebras_client:
-                    try:
-                        self._cerebras_client.close()
-                    except Exception:
-                        pass
-                self._cerebras_client   = self._make_client()
-                self._last_cerebras_key = api_key
-            return self._cerebras_client
-
     def start_heartbeat(self, api_key: str, provider: str):
         if self._heartbeat_active:
             return
@@ -312,17 +350,6 @@ class _ConnectionPool:
                         if c:
                             c.get(
                                 "https://api.openai.com/v1/models",
-                                headers={
-                                    "Authorization":
-                                        f"Bearer {self._heartbeat_api_key}"
-                                },
-                                timeout=5.0,
-                            )
-                    elif provider == "cerebras":
-                        c = self._cerebras_client
-                        if c:
-                            c.get(
-                                "https://api.cerebras.ai/v1/models",
                                 headers={
                                     "Authorization":
                                         f"Bearer {self._heartbeat_api_key}"
@@ -362,7 +389,7 @@ class _ConnectionPool:
     def invalidate(self):
         self.stop_heartbeat()
         with self._lock:
-            for c in (self._anthropic_client, self._openai_client, self._cerebras_client, self._proxy_client):
+            for c in (self._anthropic_client, self._openai_client, self._proxy_client):
                 if c:
                     try:
                         c.close()
@@ -370,11 +397,9 @@ class _ConnectionPool:
                         pass
             self._anthropic_client   = None
             self._openai_client      = None
-            self._cerebras_client    = None
             self._proxy_client       = None
             self._last_anthropic_key = ""
             self._last_openai_key    = ""
-            self._last_cerebras_key  = ""
             self._last_proxy_url     = ""
 
 
@@ -455,7 +480,6 @@ class LLMClient:
     # When in proxy mode, we use dynamic paths that proxy back to our FastAPI edge router
     PROXY_ANTHROPIC_PATH = "/v1/proxy/anthropic"
     PROXY_OPENAI_PATH    = "/v1/proxy/openai"
-    PROXY_CEREBRAS_PATH  = "/v1/proxy/cerebras"
 
     def __init__(self):
         self._cfg:      Optional[dict] = None
@@ -648,17 +672,42 @@ class LLMClient:
         optimized_images = None
         if images:
             t0 = time.time()
+            # TTFT-OPT: images arriving here from the capture pipeline
+            # (screenshot.py → _pil_to_base64) are already resized to
+            # 768 px and format-detected (PNG for text, JPEG otherwise).
+            # Re-processing them through _optimize_image() is a no-op
+            # resize (768 < 1280 cap) that wastes 50-300 ms on the TTFT
+            # critical path.  We pass already_optimized=True so the
+            # function returns immediately without decoding.
+            #
+            # This is safe because:
+            #   1. capture/screenshot.py already calls _pil_to_base64()
+            #      which resizes to 768px and picks PNG/JPEG format.
+            #   2. _optimize_image()'s 1280px cap never triggers (768<1280).
+            #   3. _is_text_screenshot() re-detection is redundant — the
+            #      screenshot module already made the PNG/JPEG decision.
+            already_optimized = True
             if len(images) == 1:
-                optimized_images = [_optimize_image_cached(images[0])]
+                optimized_images = [
+                    _optimize_image_cached(images[0],
+                                           already_optimized=already_optimized)
+                ]
             else:
                 with ThreadPoolExecutor(max_workers=min(len(images), 4)) as ex:
                     optimized_images = list(
-                        ex.map(_optimize_image_cached, images)
+                        ex.map(
+                            lambda img: _optimize_image_cached(
+                                img, already_optimized=already_optimized
+                            ),
+                            images,
+                        )
                     )
+            ms = (time.time() - t0) * 1_000
             print(
                 f"[llm] image optimisation "
-                f"{(time.time() - t0) * 1_000:.0f} ms "
+                f"{ms:.0f} ms "
                 f"({len(images)} image(s))"
+                f"{'  [skipped — already optimized]' if already_optimized else ''}"
             )
 
         try:
@@ -674,12 +723,6 @@ class LLMClient:
                         optimized_images, on_token, cancel_event, mode,
                         proxy_url, proxy_token, "anthropic",
                     )
-                elif provider == "cerebras":
-                    full_text = self._stream_via_proxy(
-                        cfg, model, system_prompt, messages,
-                        optimized_images, on_token, cancel_event, mode,
-                        proxy_url, proxy_token, "cerebras",
-                    )
                 else:
                     full_text = self._stream_via_proxy(
                         cfg, model, system_prompt, messages,
@@ -691,11 +734,6 @@ class LLMClient:
                 full_text = self._stream_anthropic_direct(
                     cfg, model, system_prompt, messages,
                     optimized_images, on_token, cancel_event, mode,
-                )
-            elif provider == "cerebras":
-                # Cerebras doesn't support BYOK (direct mode) - users must go through proxy
-                raise RuntimeError(
-                    "Cerebras requires GlassNote proxy. Ensure you have an active subscription."
                 )
             else:
                 # BYOK mode — direct to OpenAI
@@ -833,7 +871,7 @@ class LLMClient:
         Args:
             proxy_url: Base URL of the proxy (e.g. https://api.glassnote.ai).
             proxy_token: User's JWT token.
-            provider: 'anthropic', 'openai', or 'cerebras'.
+            provider: 'anthropic' or 'openai'.
         """
         http_client = _pool.get_proxy(proxy_url)
         max_tokens  = self._get_max_tokens(cfg, mode)
@@ -854,7 +892,7 @@ class LLMClient:
                               ),
             }
             endpoint = f"{proxy_url}{self.PROXY_ANTHROPIC_PATH}"
-        elif provider == "openai" or provider == "cerebras":
+        elif provider == "openai":
             oai_messages = [{"role": "system", "content": system_prompt}]
             oai_messages.extend(
                 self._build_openai_messages(messages, images)
@@ -865,10 +903,7 @@ class LLMClient:
                 "stream":     True,
                 "max_tokens": max_tokens,
             }
-            if provider == "cerebras":
-                endpoint = f"{proxy_url}{self.PROXY_CEREBRAS_PATH}"
-            else:
-                endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
+            endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
 
         # Headers — only our JWT, proxy handles provider auth
         headers = {

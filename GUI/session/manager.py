@@ -110,8 +110,8 @@ class SessionContext:
 
         # ── Core persona ──────────────────────────────────────────────────────
         parts = [
-            "You are GlassNote, an expert technical interview assistant operating in real time.",
-            "Your answers must be accurate, concise, and immediately usable by a candidate mid-interview.",
+            "You are GlassNote, an expert technical assistant operating in real time.",
+            "Your answers must be accurate, concise, and immediately usable by a candidate mid-meeting.",
             "Always use Markdown for structure. Always use fenced code blocks (with language tag) for code.",
             "For every algorithm or data-structure problem, include Time and Space complexity.",
             "Never add filler phrases ('Great question!', 'Certainly!', 'Of course!'). Get straight to the answer.",
@@ -139,7 +139,7 @@ class SessionContext:
         if self.company:
             parts.append(
                 f"## Target Company\n"
-                f"The candidate is interviewing at **{self.company}**. "
+                f"The candidate is meeting with **{self.company}**. "
                 f"Where relevant, tailor examples, system-design scale, and culture fit "
                 f"to what is known about {self.company}."
             )

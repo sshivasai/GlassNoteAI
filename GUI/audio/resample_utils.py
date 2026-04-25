@@ -39,7 +39,11 @@ def resample_numpy(
     target_sr: int = TARGET_SR,
 ) -> np.ndarray:
     """
-    Resample *audio* from *orig_sr* → *target_sr* using linear interpolation.
+    Resample *audio* from *orig_sr* → *target_sr*.
+
+    Fast paths are used for the common integer-ratio cases (e.g.
+    48 000→16 000 = 3:1 decimation, 48 000→24 000 = 2:1 decimation).
+    Non-integer ratios fall back to linear interpolation.
 
     Parameters
     ----------
@@ -51,22 +55,46 @@ def resample_numpy(
     -------
     int16 numpy array at *target_sr*
 
-    Common conversions                              # ← UPDATED examples
+    Common conversions
     ------------------
-    44 100 → 16 000  : n_new = round(n * 160/441)
-    48 000 → 16 000  : n_new = round(n / 3)        ← exact integer
-    44 100 → 24 000  : n_new = round(n * 240/441)
-    48 000 → 24 000  : n_new = round(n / 2)        ← exact integer
+    44 100 → 16 000  : n_new = round(n * 160/441)   ← interpolation
+    48 000 → 16 000  : n_new = n / 3                 ← fast decimation
+    44 100 → 24 000  : n_new = round(n * 240/441)   ← interpolation
+    48 000 → 24 000  : n_new = n / 2                 ← fast decimation
     """
-    audio = np.asarray(audio, dtype=np.float64)
+    # Ensure we have a proper int16 array to work with
+    pcm_int16 = np.asarray(audio, dtype=np.int16) if np.issubdtype(
+        np.asarray(audio).dtype, np.integer
+    ) else np.clip(
+        np.asarray(audio, dtype=np.float64), -32_768.0, 32_767.0
+    ).astype(np.int16)
 
+    # ── No-op: same rate ────────────────────────────────────────────
     if orig_sr == target_sr:
-        return audio.astype(np.int16)
+        return np.ascontiguousarray(pcm_int16)
 
-    n_orig = len(audio)
-    if n_orig == 0:
+    if len(pcm_int16) == 0:
         return np.zeros(0, dtype=np.int16)
 
+    # ── Fast path: integer-ratio downsampling (decimation) ──────────
+    # e.g. 48 000→16 000 (ratio=3), 48 000→24 000 (ratio=2)
+    # Valid because the mic hardware / OS audio stack already low-pass
+    # filters well below the Nyquist of the target rate.
+    ratio, remainder = divmod(orig_sr, target_sr)
+    if remainder == 0 and ratio > 1:
+        decimated = pcm_int16[::ratio]
+        return np.ascontiguousarray(decimated)
+
+    # ── Fast path: integer-ratio upsampling (repeat) ────────────────
+    # Less common but handles e.g. 8 000→16 000 (ratio_up=2)
+    ratio_up, remainder_up = divmod(target_sr, orig_sr)
+    if remainder_up == 0 and ratio_up > 1:
+        return np.repeat(pcm_int16, ratio_up)
+
+    # ── Fallback: linear interpolation for non-integer ratios ───────
+    # e.g. 44 100→16 000, 44 100→24 000
+    audio_f64 = pcm_int16.astype(np.float64)
+    n_orig = len(audio_f64)
     n_new = int(round(n_orig * target_sr / orig_sr))
     if n_new == 0:
         return np.zeros(0, dtype=np.int16)
@@ -75,7 +103,7 @@ def resample_numpy(
     x_new = np.linspace(0.0, 1.0, n_new)
 
     return np.clip(
-        np.interp(x_new, x_old, audio),
+        np.interp(x_new, x_old, audio_f64),
         -32_768.0, 32_767.0,
     ).astype(np.int16)
 

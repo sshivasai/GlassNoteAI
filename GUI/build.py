@@ -603,7 +603,7 @@ Hotkeys:
   Ctrl+Shift+C  Capture screenshot
   Ctrl+Shift+S  Solve queued screenshots
   Ctrl+Shift+A  Instant analyze
-  Ctrl+Shift+I  Toggle interview mode
+  Ctrl+Shift+I  Toggle meeting mode
   Ctrl+Shift+H  Toggle answer overlay
   Ctrl+Shift+Q  End session
 

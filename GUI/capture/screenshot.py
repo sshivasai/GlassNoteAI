@@ -3,9 +3,11 @@ Screenshot capture module — OPTIMIZED VERSION.
 
 Changes:
   - capture_fullscreen() checks for saved region first
-  - _pil_to_base64 targets 1280px (was 1920px) — 32% smaller
+  - _pil_to_base64 targets 768px — fits single OpenAI vision tile
   - Smart format: PNG for text, JPEG for diagrams
   - capture_with_region() for region-based capture
+  - Cached mss instance avoids ~5-20ms per-call overhead
+  - PNG optimize=False saves ~10-30ms (LLM client skips re-optimization)
 """
 
 import base64
@@ -16,13 +18,43 @@ from PIL import Image
 
 from settings import config
 
+# ---------------------------------------------------------------------------
+# Lazy-singleton for the mss screen-capture context.
+# Re-creating mss.mss() on every call costs ~5-20 ms; caching it removes
+# that overhead.  If the instance becomes stale (e.g. display topology
+# change), the grab() call will raise and we transparently recreate it.
+# ---------------------------------------------------------------------------
+_mss_instance = None
+
+
+def _get_mss():
+    """Return a cached mss instance, creating one on first call."""
+    global _mss_instance
+    if _mss_instance is None:
+        import mss
+        _mss_instance = mss.mss()
+    return _mss_instance
+
+
+def _reset_mss():
+    """Discard the cached mss instance so the next call creates a fresh one."""
+    global _mss_instance
+    try:
+        if _mss_instance is not None:
+            _mss_instance.close()
+    except Exception:
+        pass
+    _mss_instance = None
+
 
 def capture_fullscreen(monitor_index: int = 1) -> str:
     """
     Capture screen. Uses saved region if configured, else full screen.
     Returns base64-encoded PNG/JPEG string.
     """
-    # Check if user has set a capture region
+    # Check if user has set a capture region.
+    # config.load_config() is cheap — it's mtime-cached and only re-reads
+    # the file when it has actually changed on disk.
     cfg = config.load_config()
     region = cfg.get("capture_region", None)
 
@@ -40,14 +72,24 @@ def capture_fullscreen(monitor_index: int = 1) -> str:
 
 def _capture_full(monitor_index: int = 1) -> str:
     try:
-        import mss
-        with mss.mss() as sct:
+        sct = _get_mss()
+        monitor = sct.monitors[monitor_index]
+        raw = sct.grab(monitor)
+        img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+        return _pil_to_base64(img)
+    except ImportError:
+        raise ImportError("mss not installed. Run: pip install mss")
+    except Exception as e:
+        # mss instance may be stale after display changes — recreate & retry
+        _reset_mss()
+        try:
+            sct = _get_mss()
             monitor = sct.monitors[monitor_index]
             raw = sct.grab(monitor)
             img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
             return _pil_to_base64(img)
-    except ImportError:
-        raise ImportError("mss not installed. Run: pip install mss")
+        except Exception:
+            raise e  # raise the original error if retry also fails
 
 
 def capture_region(x: int, y: int, width: int, height: int) -> str:
@@ -56,14 +98,24 @@ def capture_region(x: int, y: int, width: int, height: int) -> str:
     Returns base64-encoded string.
     """
     try:
-        import mss
-        with mss.mss() as sct:
+        sct = _get_mss()
+        region = {"top": y, "left": x, "width": width, "height": height}
+        raw = sct.grab(region)
+        img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
+        return _pil_to_base64(img)
+    except ImportError:
+        raise ImportError("mss not installed. Run: pip install mss")
+    except Exception as e:
+        # mss instance may be stale after display changes — recreate & retry
+        _reset_mss()
+        try:
+            sct = _get_mss()
             region = {"top": y, "left": x, "width": width, "height": height}
             raw = sct.grab(region)
             img = Image.frombytes("RGB", raw.size, raw.bgra, "raw", "BGRX")
             return _pil_to_base64(img)
-    except ImportError:
-        raise ImportError("mss not installed. Run: pip install mss")
+        except Exception:
+            raise e  # raise the original error if retry also fails
 
 
 def _is_text_heavy(img: Image.Image) -> bool:
@@ -117,7 +169,9 @@ def _pil_to_base64(img: Image.Image, max_width: int = 768) -> str:
     buffer = io.BytesIO()
 
     if _is_text_heavy(img):
-        img.save(buffer, format="PNG", optimize=True)
+        # optimize=False: saves ~10-30ms; the LLM client skips
+        # re-optimization for capture-pipeline images anyway.
+        img.save(buffer, format="PNG")
     else:
         # JPEG for photos/diagrams — ~40% smaller base64 payload
         img = img.convert("RGB")

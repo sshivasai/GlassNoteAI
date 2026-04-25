@@ -143,6 +143,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             token = auth_header[7:]
             payload = decode_access_token(token)
             user_id = payload.get("sub", "anon")
+            # Store decoded JWT payload in request.state so downstream route
+            # handlers (e.g. get_current_user) can access it via
+            # request.state.jwt_payload without re-decoding the token.
+            request.state.jwt_payload = payload
         except Exception:
             return await call_next(request)
 

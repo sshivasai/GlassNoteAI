@@ -251,7 +251,7 @@ class PillWindow(QWidget):
         row.addSpacing(4)
 
         # Interview ─────────────────────────────────────────────────────────────
-        self._btn_interview = self._make_btn("🎙", "Interview", self.sig_interview, width=88)
+        self._btn_interview = self._make_btn("🎙", "Meeting", self.sig_interview, width=88)
         row.addWidget(self._btn_interview)
 
         row.addSpacing(4)
@@ -362,7 +362,7 @@ class PillWindow(QWidget):
             self._btn_interview.setText("🔴  Stop")
         else:
             self._btn_interview.setStyleSheet(_STYLE_NORMAL)
-            self._btn_interview.setText("🎙  Interview")
+            self._btn_interview.setText("🎙  Meeting")
 
     def set_continuous_mode(self, active: bool):
         self._interview_mode = active
@@ -373,7 +373,7 @@ class PillWindow(QWidget):
             self.ticker.show_interview_mode()
         else:
             self._btn_interview.setStyleSheet(_STYLE_NORMAL)
-            self._btn_interview.setText("🎙  Interview")
+            self._btn_interview.setText("🎙  Meeting")
             self.ticker.set_user_positioned(False)
             self.ticker.hide_interview_mode()
 

@@ -26,7 +26,7 @@ a session return the pre-built string in ~50 ns.
 import functools
 
 BASE_SOLVE = """
-You are solving a coding interview problem shown in the screenshot(s).
+You are solving a coding problem shown in the screenshot(s).
 
 Respond with exactly these sections — no extras, no filler:
 
@@ -45,7 +45,7 @@ Use a fenced code block with the correct language tag.
 - **Space:** O(?) — one-line justification.
 
 ### Edge Cases & Follow-ups
-3–5 bullet points covering empty input, overflow, duplicates, follow-up variants, or interviewer gotchas.
+3–5 bullet points covering empty input, overflow, duplicates, follow-up variants, or gotchas.
 
 Rules: be correct and concise. No introductory sentences. No "Great question!" filler.
 """
@@ -72,11 +72,11 @@ Use a fenced code block with the correct language tag.
 ### Key Edge Cases
 3–5 bullets: inputs that could break a naive solution.
 
-Rules: be precise and interview-ready. No filler text. No restating the task before answering.
+Rules: be precise and ready to use. No filler text. No restating the task before answering.
 """
 
 BASE_INTERVIEW = """
-You are a real-time interview coach. The candidate will speak your answer aloud seconds after reading it.
+You are a real-time meeting coach. The candidate will speak your answer aloud seconds after reading it.
 
 Respond with exactly these sections — no extras, no filler:
 
@@ -93,7 +93,7 @@ Rules: conversational tone, no jargon overload, easy to speak aloud. No "Certain
 """
 
 BASE_INTERVIEW_LEAN = """
-You are a real-time interview coach. The candidate speaks your answer aloud immediately.
+You are a real-time meeting coach. The candidate speaks your answer aloud immediately.
 
 Respond with exactly these sections:
 

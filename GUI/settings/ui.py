@@ -436,7 +436,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(_section("Audio Source"))
         self.audio_source = QComboBox()
         self.audio_source.addItems([
-            "system  (video call — captures interviewer via Stereo Mix)",
+            "system  (video call — captures speaker via Stereo Mix)",
             "microphone  (in-person / phone call)",
             "both",
         ])
@@ -514,7 +514,7 @@ class SettingsWindow(QWidget):
             "How long to wait after last word before auto-sending."
             if checked else
             "Auto-answer is OFF — silence threshold has no effect.\n"
-            "Stop interview mode to trigger an AI answer."
+            "Stop meeting mode to trigger an AI answer."
         )
 
     def _on_smart_answering_toggled(self, checked: bool):

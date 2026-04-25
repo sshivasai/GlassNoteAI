@@ -67,7 +67,7 @@ export async function Testimonials() {
             Loved by engineers
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            See how GlassNote is helping developers ace their interviews at top tech companies.
+            See how GlassNote is helping developers ace their meetings at top tech companies.
           </p>
         </div>
 

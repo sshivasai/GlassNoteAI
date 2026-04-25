@@ -18,7 +18,7 @@ export function CTA() {
           Ready to ace your
           <br />
           <span className="bg-gradient-to-r from-[var(--cyan)] to-[var(--lime)] bg-clip-text text-transparent">
-            next interview?
+            next meeting?
           </span>
         </h2>
 
@@ -33,7 +33,7 @@ export function CTA() {
             className="bg-[var(--cyan)] text-white hover:opacity-90 font-semibold px-8 h-12 flex items-center gap-2 shadow-[0_0_20px_var(--cyan-dim)] transition-transform duration-300 hover:scale-105"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801"/>
+              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801" />
             </svg>
             Download for Windows
           </Button>
