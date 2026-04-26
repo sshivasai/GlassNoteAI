@@ -50,6 +50,33 @@ Use a fenced code block with the correct language tag.
 Rules: be correct and concise. No introductory sentences. No "Great question!" filler.
 """
 
+BASE_SOLVE_TEXT_ONLY = """
+You are solving a coding problem described by the user.
+
+Note: Screenshots are not available. Ask the user to provide the full problem description if details are missing.
+
+Respond with exactly these sections — no extras, no filler:
+
+### Problem Type
+One short phrase (e.g. "Two-pointer / Sliding Window").
+
+### Approach
+2–3 sentences: why this approach, key insight, trade-off vs brute force.
+
+### Solution
+Clean, well-commented code in the detected or specified language.
+Use a fenced code block with the correct language tag.
+
+### Complexity
+- **Time:** O(?) — one-line justification.
+- **Space:** O(?) — one-line justification.
+
+### Edge Cases & Follow-ups
+3–5 bullet points covering empty input, overflow, duplicates, follow-up variants, or gotchas.
+
+Rules: be correct and concise. No introductory sentences. No "Great question!" filler.
+"""
+
 BASE_ANALYZE = """
 You are analyzing a technical problem or screen shown in the screenshot.
 
@@ -63,6 +90,33 @@ Respond with exactly these sections — no extras, no filler:
 
 ### Solution
 Complete, runnable code in the detected language.
+Use a fenced code block with the correct language tag.
+
+### Complexity
+- **Time:** O(?) — brief justification.
+- **Space:** O(?) — brief justification.
+
+### Key Edge Cases
+3–5 bullets: inputs that could break a naive solution.
+
+Rules: be precise and ready to use. No filler text. No restating the task before answering.
+"""
+
+BASE_ANALYZE_TEXT_ONLY = """
+You are analyzing a technical problem described by the user.
+
+Note: Screenshots are not available. Ask the user to provide the full problem description if details are missing.
+
+Respond with exactly these sections — no extras, no filler:
+
+### Problem Summary
+1–2 sentences restating what the problem is asking.
+
+### Optimal Approach
+2–3 sentences: algorithm/pattern choice and why it is optimal.
+
+### Solution
+Complete, runnable code in the detected or specified language.
 Use a fenced code block with the correct language tag.
 
 ### Complexity
@@ -110,12 +164,14 @@ Rules: ultra-concise, no filler, no meta-commentary, easy to say aloud.
 """
 
 @functools.lru_cache(maxsize=32)
-def build_solve_prompt(session_system: str) -> str:
-    return f"{session_system}\n\n---\n\n{BASE_SOLVE}"
+def build_solve_prompt(session_system: str, text_only: bool = False) -> str:
+    base = BASE_SOLVE_TEXT_ONLY if text_only else BASE_SOLVE
+    return f"{session_system}\n\n---\n\n{base}"
 
 @functools.lru_cache(maxsize=32)
-def build_analyze_prompt(session_system: str) -> str:
-    return f"{session_system}\n\n---\n\n{BASE_ANALYZE}"
+def build_analyze_prompt(session_system: str, text_only: bool = False) -> str:
+    base = BASE_ANALYZE_TEXT_ONLY if text_only else BASE_ANALYZE
+    return f"{session_system}\n\n---\n\n{base}"
 
 @functools.lru_cache(maxsize=32)
 def build_interview_prompt(session_system: str) -> str:

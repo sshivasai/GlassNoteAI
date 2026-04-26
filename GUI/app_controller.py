@@ -196,6 +196,19 @@ class AppController(QObject):
     def _on_user_speaking_changed(self, speaking: bool):
         self.pill.set_user_speaking(speaking)
 
+        # Auto-resume pipeline when user stops speaking
+        # (only when auto_answer=True AND smart_answering=True)
+        if not speaking:
+            cfg = config.load_config()
+            auto_answer = cfg.get("auto_answer", False)
+            smart_answering = cfg.get("smart_answering", True)
+
+            # Only auto-resume if BOTH auto_answer and smart_answering are enabled
+            # This ensures the buffered smart dispatch is flushed
+            if auto_answer and smart_answering:
+                # Resume the pipeline to dispatch any pending smart dispatch
+                self._audio.resume()
+
     # ── Hotkeys ────────────────────────────────────────────────────────────────
 
     def _setup_hotkeys(self):
@@ -1123,10 +1136,12 @@ class AppController(QObject):
         cfg          = config.load_config()
         smart        = cfg.get("smart_answering", True)    # Bug 2 fix: default True (lean prompt, ~400ms TTFT vs ~2000ms)
         base         = session.build_system_prompt()
+        provider     = cfg.get("selected_provider", "anthropic")
+        text_only    = (provider == "cerebras")  # Cerebras models don't support images
 
         # ── Prompt selection ───────────────────────────────────────────────────
         if mode == "analyze":
-            system_prompt = prompts.build_analyze_prompt(base)
+            system_prompt = prompts.build_analyze_prompt(base, text_only=text_only)
         elif mode == "interview":
             # ← CHANGED: lean prompt when smart_answering=True
             # Lean prompt: ~80 tokens → saves 100–400 ms TTFT on Haiku.
@@ -1137,7 +1152,7 @@ class AppController(QObject):
                 else prompts.build_interview_prompt(base)
             )
         else:
-            system_prompt = prompts.build_solve_prompt(base)
+            system_prompt = prompts.build_solve_prompt(base, text_only=text_only)
 
         # ── Messages ───────────────────────────────────────────────────────────
         if messages_override:
@@ -1167,6 +1182,8 @@ class AppController(QObject):
         provider = cfg.get("selected_provider", "anthropic")
         if provider == "anthropic":
             self._dispatch_model = cfg.get("anthropic_model", "claude-opus-4-5")
+        elif provider == "cerebras":
+            self._dispatch_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:
             self._dispatch_model = cfg.get("openai_model", "gpt-4o")
 

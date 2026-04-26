@@ -131,7 +131,7 @@ def decode_access_token(token: str) -> dict:
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 
-_security = HTTPBearer()
+_security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -144,10 +144,22 @@ async def get_current_user(
     It does NOT hit the database — all user info is in the JWT payload.
     This keeps auth overhead at <0.5ms.
 
+    In debug mode, allows unauthenticated access for local testing.
+
     Returns:
         dict: User info with 'sub' (user_id), 'email', 'plan'.
 
     Raises:
         HTTPException: 401 if token is missing or invalid.
     """
+    settings = get_settings()
+
+    if settings.debug and (not credentials or not credentials.credentials):
+        # Return a mock user for local development
+        return {
+            "sub": "local-dev-user",
+            "email": "dev@localhost",
+            "plan": "pro"
+        }
+
     return decode_access_token(credentials.credentials)

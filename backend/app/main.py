@@ -46,15 +46,16 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"[glassnote] Starting {settings.app_name}")
     print(f"[glassnote] Debug mode: {settings.debug}")
-    print(f"[glassnote] Anthropic key: {'✓' if settings.anthropic_api_key else '✗'}")
-    print(f"[glassnote] OpenAI key:    {'✓' if settings.openai_api_key else '✗'}")
+    print(f"[glassnote] Anthropic key: {'OK' if settings.anthropic_api_key else 'MISSING'}")
+    print(f"[glassnote] OpenAI key:    {'OK' if settings.openai_api_key else 'MISSING'}")
+    print(f"[glassnote] Cerebras key:  {'OK' if settings.cerebras_api_key else 'MISSING'}")
 
     # Create database tables
     print("[glassnote] Initializing database...")
     try:
         await create_tables()
     except Exception as e:
-        print(f"[glassnote] ⚠ Database init failed: {e}")
+        print(f"[glassnote] WARNING: Database init failed: {e}")
         print("[glassnote]   Ensure PostgreSQL is running and DATABASE_URL is correct")
 
     # TTFT-OPT: eager pool warm-up at startup
@@ -70,7 +71,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[glassnote]   Pool warming failed (non-fatal): {e}")
 
-    print("[glassnote] ✓ Ready — accepting requests")
+    print("[glassnote] OK Ready — accepting requests")
 
     yield  # App is running
 
@@ -78,7 +79,7 @@ async def lifespan(app: FastAPI):
     print("[glassnote] Shutting down...")
     await close_pools()
     await close_engine()
-    print("[glassnote] ✓ Shutdown complete")
+    print("[glassnote] OK Shutdown complete")
 
 
 # ── Create app ────────────────────────────────────────────────────────────────

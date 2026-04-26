@@ -34,6 +34,8 @@ _PRICING = {
     "o1":                 (15.00, 60.00),
     "o1-mini":            (3.00,  12.00),
     "o3-mini":            (1.10,  4.40),
+    "llama3.1-8b":        (0.10,  0.10),
+    "gpt-oss-120b":       (0.60,  0.60),
 }
 
 # STT pricing per minute

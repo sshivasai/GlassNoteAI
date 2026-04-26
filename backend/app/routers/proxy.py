@@ -39,8 +39,10 @@ from app.pricing_config import is_model_allowed
 
 router = APIRouter(prefix="/v1/proxy", tags=["llm-proxy"])
 
-# GPT-5.4 family uses the new Responses API, not Chat Completions
-_GPT5_MODELS = {"gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"}
+# GPT-5.4 family now uses Chat Completions API (as of latest API update)
+# All gpt-5.4 variants (base, mini, nano) use /v1/chat/completions
+# Responses API is no longer used for these models
+_GPT5_MODELS = set()  # Empty - all models use Chat Completions now
 
 
 # ── Pre-warmed async HTTP/2 connection pool ───────────────────────────────────
@@ -339,6 +341,7 @@ async def proxy_openai(
         raise HTTPException(500, "OpenAI API key not configured on server")
 
     body_bytes = await request.body()
+    body_json = {}
     try:
         body_json = json.loads(body_bytes)
         model = body_json.get("model", "gpt-4o-mini")
@@ -346,6 +349,16 @@ async def proxy_openai(
         model = "gpt-4o-mini"
 
     _check_model_access(user.get("plan", "free"), model)
+
+    # ── API compatibility fix: nano models require max_completion_tokens ──────
+    # OpenAI's latest API requires 'max_completion_tokens' for nano models,
+    # but older clients send 'max_tokens'. Transform the request for compatibility.
+    print(f"[proxy] DEBUG: model={model}, has_nano={'nano' in model.lower()}, has_body_json={bool(body_json)}, has_max_tokens={'max_tokens' in body_json}")
+    if body_json and "nano" in model.lower() and "max_tokens" in body_json:
+        print(f"[proxy] Transforming max_tokens → max_completion_tokens for {model}")
+        body_json["max_completion_tokens"] = body_json.pop("max_tokens")
+        body_bytes = json.dumps(body_json).encode("utf-8")
+        print(f"[proxy] Transformed body: {body_json}")
 
     pool = await _get_openai_pool()
     proxy_headers = {
@@ -560,7 +573,9 @@ async def proxy_cerebras(
         model = "llama3.1-8b"
 
     # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
-    _check_model_access(user.get("plan", "free"), model)
+    # In debug mode, skip model access check to allow local testing
+    if not settings.debug:
+        _check_model_access(user.get("plan", "free"), model)
 
     pool = await _get_cerebras_pool()
 

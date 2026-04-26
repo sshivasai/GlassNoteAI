@@ -434,12 +434,17 @@ class AudioPipeline(QThread):
         # Bug B fix: guard against firing when gate is closed (pipeline paused)
         # or when smart_answering is disabled — in that case the silence timer
         # is the sole dispatch trigger and this callback must be a no-op.
-        if self._gated:
+        #
+        # IMPORTANT: When auto_answer=False, ignore the gate — smart dispatch
+        # should fire immediately regardless of user speech (manual mode).
+        # Gate only matters when auto_answer=True (auto-resume on user stop).
+        if not self._smart_answering:
+            return
+        if self._gated and self._auto_answer:
             # Buffer for dispatch when gate opens (race condition fix)
+            # Only applies in auto_answer mode
             self._pending_smart_dispatch = text.strip()
             print(f"[pipeline] ⚠️ Smart dispatch buffered (gate closed): '{text[:50]}'")
-            return
-        if not self._smart_answering:
             return
         if not self._continuous_mode:
             return
