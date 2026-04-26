@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # ── Provider API Keys (master — used for proxying) ─────────
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    cerebras_api_key: str = ""
     deepgram_api_key: str = ""
 
     # ── Stripe ─────────────────────────────────────────────────

@@ -82,6 +82,25 @@ async def _get_openai_pool() -> httpx.AsyncClient:
     return _openai_pool
 
 
+_cerebras_pool: Optional[httpx.AsyncClient] = None
+
+
+async def _get_cerebras_pool() -> httpx.AsyncClient:
+    """Get or create the shared Cerebras HTTP/2 connection pool."""
+    global _cerebras_pool
+    if _cerebras_pool is None or _cerebras_pool.is_closed:
+        _cerebras_pool = httpx.AsyncClient(
+            http2=True,
+            timeout=httpx.Timeout(120.0, connect=10.0),
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=50,
+                keepalive_expiry=300,
+            ),
+        )
+    return _cerebras_pool
+
+
 # TTFT-OPT: eager pool warm-up at startup
 async def eager_warm_pools() -> dict:
     """
@@ -155,6 +174,22 @@ async def eager_warm_pools() -> dict:
         results["anthropic"] = anthropic_result
     if openai_result:
         results["openai"] = openai_result
+
+    if settings.cerebras_api_key:
+        try:
+            pool = await _get_cerebras_pool()
+            t0   = time.time()
+            r = await pool.get(
+                "https://api.cerebras.ai/v1/models",
+                headers={"Authorization": f"Bearer {settings.cerebras_api_key}"},
+                timeout=8.0,
+            )
+            ms = (time.time() - t0) * 1_000
+            results["cerebras"] = {"status": "warm", "latency_ms": round(ms), "http_status": r.status_code}
+            print(f"[proxy] TTFT-OPT: Cerebras pool warmed — {ms:.0f} ms  (HTTP {r.status_code})")
+        except Exception as e:
+            results["cerebras"] = {"status": "error", "error": str(e)}
+            print(f"[proxy] TTFT-OPT: Cerebras pool warm-up failed (non-fatal): {e}")
 
     return results
 
@@ -500,7 +535,103 @@ async def proxy_openai(
 
 
 
-# ── Health check — also warms the connection pools ────────────────────────────
+# ── Cerebras proxy ──────────────────────────────────────────────────────────────────
+
+@router.post("/cerebras")
+async def proxy_cerebras(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Zero-copy streaming proxy for Cerebras' OpenAI-compatible API.
+
+    Cerebras uses the same /v1/chat/completions format as OpenAI,
+    so SSE parsing is identical. Text-only (no vision support).
+    """
+    settings = get_settings()
+    if not settings.cerebras_api_key:
+        raise HTTPException(500, "Cerebras API key not configured on server")
+
+    body_bytes = await request.body()
+    try:
+        body_json = json.loads(body_bytes)
+        model = body_json.get("model", "llama3.1-8b")
+    except (json.JSONDecodeError, AttributeError):
+        model = "llama3.1-8b"
+
+    # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
+    _check_model_access(user.get("plan", "free"), model)
+
+    pool = await _get_cerebras_pool()
+
+    # Cerebras uses Bearer auth, same as OpenAI
+    proxy_headers = {
+        "Authorization": f"Bearer {settings.cerebras_api_key}",
+        "Content-Type":  "application/json",
+    }
+
+    # Inject stream_options for usage tracking
+    try:
+        body_json.setdefault("stream_options", {})["include_usage"] = True
+        body_bytes = json.dumps(body_json).encode("utf-8")
+    except Exception:
+        pass
+
+    t0 = time.time()
+
+    async def stream_relay():
+        output_tokens = 0
+        input_tokens  = 0
+
+        async with pool.stream(
+            "POST",
+            "https://api.cerebras.ai/v1/chat/completions",
+            headers=proxy_headers,
+            content=body_bytes,
+        ) as response:
+            if response.status_code != 200:
+                error_body = await response.aread()
+                yield error_body
+                return
+
+            async for chunk in response.aiter_bytes():
+                yield chunk
+
+                if b'"usage"' in chunk and b'"total_tokens"' in chunk:
+                    try:
+                        for line in chunk.decode("utf-8", errors="ignore").split("\n"):
+                            if line.startswith("data:") and '"usage"' in line:
+                                data = line[5:].strip()
+                                if data == "[DONE]":
+                                    continue
+                                evt = json.loads(data)
+                                usage = evt.get("usage", {})
+                                input_tokens  = usage.get("prompt_tokens", 0)
+                                output_tokens = usage.get("completion_tokens", 0)
+                    except Exception:
+                        pass
+
+        elapsed_ms = (time.time() - t0) * 1000
+        asyncio.create_task(_log_llm_usage(
+            user_id=user["sub"],
+            provider="cerebras",
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=int(elapsed_ms),
+        ))
+
+    return StreamingResponse(
+        stream_relay(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Health check — also warms the connection pools ──────────────────────────────────
 
 @router.get("/health")
 async def proxy_health():
@@ -550,6 +681,24 @@ async def proxy_health():
         except Exception as e:
             status_info["pools"]["openai"] = {"status": "error", "error": str(e)}
 
+    if settings.cerebras_api_key:
+        try:
+            pool = await _get_cerebras_pool()
+            t0 = time.time()
+            r = await pool.get(
+                "https://api.cerebras.ai/v1/models",
+                headers={"Authorization": f"Bearer {settings.cerebras_api_key}"},
+                timeout=8.0,
+            )
+            ms = (time.time() - t0) * 1000
+            status_info["pools"]["cerebras"] = {
+                "status": "warm",
+                "latency_ms": round(ms),
+                "http_status": r.status_code,
+            }
+        except Exception as e:
+            status_info["pools"]["cerebras"] = {"status": "error", "error": str(e)}
+
     return status_info
 
 
@@ -592,6 +741,8 @@ async def _log_llm_usage(
         "gpt-5.4-mini":        1.50,
         "gpt-5.4-nano":        0.30,
         "gpt-4.1-nano":        0.10,
+        "llama3.1-8b":         0.10,
+        "gpt-oss-120b":        0.60,
     }
     _COST_PER_1M_OUT = {
         "claude-opus-4-5":    75.00,
@@ -608,6 +759,8 @@ async def _log_llm_usage(
         "gpt-5.4-mini":        6.00,
         "gpt-5.4-nano":        1.20,
         "gpt-4.1-nano":        0.40,
+        "llama3.1-8b":         0.10,
+        "gpt-oss-120b":        0.60,
     }
     cost_in  = (input_tokens  / 1_000_000) * _COST_PER_1M_IN.get(model, 5.0)
     cost_out = (output_tokens / 1_000_000) * _COST_PER_1M_OUT.get(model, 15.0)
@@ -729,9 +882,10 @@ async def get_stt_credentials(
 
 async def close_pools():
     """Close HTTP connection pools on server shutdown."""
-    global _anthropic_pool, _openai_pool
-    for pool in (_anthropic_pool, _openai_pool):
+    global _anthropic_pool, _openai_pool, _cerebras_pool
+    for pool in (_anthropic_pool, _openai_pool, _cerebras_pool):
         if pool and not pool.is_closed:
             await pool.aclose()
     _anthropic_pool = None
     _openai_pool    = None
+    _cerebras_pool  = None

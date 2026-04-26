@@ -270,9 +270,11 @@ class _ConnectionPool:
         self._lock               = threading.Lock()
         self._anthropic_client:  Optional[httpx.Client] = None
         self._openai_client:     Optional[httpx.Client] = None
+        self._cerebras_client:   Optional[httpx.Client] = None
         self._proxy_client:      Optional[httpx.Client] = None
         self._last_anthropic_key = ""
         self._last_openai_key    = ""
+        self._last_cerebras_key  = ""
         self._last_proxy_url     = ""
 
         self._heartbeat_active   = False
@@ -318,6 +320,19 @@ class _ConnectionPool:
                 self._last_openai_key = api_key
             return self._openai_client
 
+    def get_cerebras(self, api_key: str) -> httpx.Client:
+        with self._lock:
+            if (self._cerebras_client is None
+                    or api_key != self._last_cerebras_key):
+                if self._cerebras_client:
+                    try:
+                        self._cerebras_client.close()
+                    except Exception:
+                        pass
+                self._cerebras_client   = self._make_client()
+                self._last_cerebras_key = api_key
+            return self._cerebras_client
+
     def start_heartbeat(self, api_key: str, provider: str):
         if self._heartbeat_active:
             return
@@ -350,6 +365,17 @@ class _ConnectionPool:
                         if c:
                             c.get(
                                 "https://api.openai.com/v1/models",
+                                headers={
+                                    "Authorization":
+                                        f"Bearer {self._heartbeat_api_key}"
+                                },
+                                timeout=5.0,
+                            )
+                    elif provider == "cerebras":
+                        c = self._cerebras_client
+                        if c:
+                            c.get(
+                                "https://api.cerebras.ai/v1/models",
                                 headers={
                                     "Authorization":
                                         f"Bearer {self._heartbeat_api_key}"
@@ -389,7 +415,7 @@ class _ConnectionPool:
     def invalidate(self):
         self.stop_heartbeat()
         with self._lock:
-            for c in (self._anthropic_client, self._openai_client, self._proxy_client):
+            for c in (self._anthropic_client, self._openai_client, self._cerebras_client, self._proxy_client):
                 if c:
                     try:
                         c.close()
@@ -397,9 +423,11 @@ class _ConnectionPool:
                         pass
             self._anthropic_client   = None
             self._openai_client      = None
+            self._cerebras_client    = None
             self._proxy_client       = None
             self._last_anthropic_key = ""
             self._last_openai_key    = ""
+            self._last_cerebras_key  = ""
             self._last_proxy_url     = ""
 
 
@@ -420,9 +448,15 @@ _OPENAI_MODELS = {
     "balanced": "gpt-4o",
     "best":     "gpt-4o",
 }
+_CEREBRAS_MODELS = {
+    "fast":     "llama3.1-8b",
+    "balanced": "gpt-oss-120b",
+    "best":     "gpt-oss-120b",
+}
 _DEFAULT_MODELS = {
     "anthropic": "claude-opus-4-5",
     "openai":    "gpt-4o",
+    "cerebras":  "llama3.1-8b",
 }
 
 _SIMPLE_KEYWORDS  = frozenset([
@@ -458,6 +492,8 @@ def _auto_select_model(mode, messages, provider, user_model) -> str:
                     last_msg += block.get("text", "").lower()
     if provider == "anthropic":
         models = _ANTHROPIC_MODELS
+    elif provider == "cerebras":
+        models = _CEREBRAS_MODELS
     else:
         models = _OPENAI_MODELS
     if any(k in last_msg for k in _COMPLEX_KEYWORDS):
@@ -474,12 +510,14 @@ def _auto_select_model(mode, messages, provider, user_model) -> str:
 class LLMClient:
     ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
     OPENAI_URL    = "https://api.openai.com/v1/chat/completions"
+    CEREBRAS_URL  = "https://api.cerebras.ai/v1/chat/completions"
     _CFG_TTL      = 5.0
 
     # ── Proxy endpoints — mirrors provider paths ───────────────────────────────
     # When in proxy mode, we use dynamic paths that proxy back to our FastAPI edge router
     PROXY_ANTHROPIC_PATH = "/v1/proxy/anthropic"
     PROXY_OPENAI_PATH    = "/v1/proxy/openai"
+    PROXY_CEREBRAS_PATH  = "/v1/proxy/cerebras"
 
     def __init__(self):
         self._cfg:      Optional[dict] = None
@@ -599,6 +637,24 @@ class LLMClient:
                     )
                     _pool.start_heartbeat(api_key, "openai")
 
+                elif provider == "cerebras":
+                    api_key = cfg.get("cerebras_api_key", "").strip()
+                    if not api_key:
+                        return
+                    t0 = time.time()
+                    c  = _pool.get_cerebras(api_key)
+                    r  = c.get(
+                        "https://api.cerebras.ai/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        timeout=8.0,
+                    )
+                    ms = (time.time() - t0) * 1_000
+                    print(
+                        f"[llm] ✓ connection warmed — cerebras "
+                        f"{ms:.0f} ms  (status={r.status_code})"
+                    )
+                    _pool.start_heartbeat(api_key, "cerebras")
+
             except Exception as e:
                 print(f"[llm] warm_connections failed (non-fatal): {e}")
 
@@ -669,8 +725,10 @@ class LLMClient:
                 on_done(cached)
                 return
 
+        # Cerebras models are text-only — skip image processing entirely
         optimized_images = None
         if images:
+            t0 = time.time()
             # TTFT-OPT: images arriving here from the capture pipeline
             # (screenshot.py → _pil_to_base64) are already resized to
             # 768 px and format-detected (PNG for text, JPEG otherwise).
@@ -686,36 +744,28 @@ class LLMClient:
             #   3. _is_text_screenshot() re-detection is redundant — the
             #      screenshot module already made the PNG/JPEG decision.
             already_optimized = True
-            if already_optimized:
-                # Skip optimization entirely — images are pre-optimized by capture pipeline
-                optimized_images = images
-                print(
-                    f"[llm] image optimisation 0 ms "
-                    f"({len(images)} image(s))  [skipped — already optimized]"
-                )
+            if len(images) == 1:
+                optimized_images = [
+                    _optimize_image_cached(images[0],
+                                           already_optimized=already_optimized)
+                ]
             else:
-                t0 = time.time()
-                if len(images) == 1:
-                    optimized_images = [
-                        _optimize_image_cached(images[0],
-                                               already_optimized=already_optimized)
-                    ]
-                else:
-                    with ThreadPoolExecutor(max_workers=min(len(images), 4)) as ex:
-                        optimized_images = list(
-                            ex.map(
-                                lambda img: _optimize_image_cached(
-                                    img, already_optimized=already_optimized
-                                ),
-                                images,
-                            )
+                with ThreadPoolExecutor(max_workers=min(len(images), 4)) as ex:
+                    optimized_images = list(
+                        ex.map(
+                            lambda img: _optimize_image_cached(
+                                img, already_optimized=already_optimized
+                            ),
+                            images,
                         )
-                ms = (time.time() - t0) * 1_000
-                print(
-                    f"[llm] image optimisation "
-                    f"{ms:.0f} ms "
-                    f"({len(images)} image(s))"
-                )
+                    )
+            ms = (time.time() - t0) * 1_000
+            print(
+                f"[llm] image optimisation "
+                f"{ms:.0f} ms "
+                f"({len(images)} image(s))"
+                f"{'  [skipped — already optimized]' if already_optimized else ''}"
+            )
 
         try:
             # ── Route decision: proxy or direct ────────────────────────────
@@ -730,6 +780,12 @@ class LLMClient:
                         optimized_images, on_token, cancel_event, mode,
                         proxy_url, proxy_token, "anthropic",
                     )
+                elif provider == "cerebras":
+                    full_text = self._stream_via_proxy(
+                        cfg, model, system_prompt, messages,
+                        None, on_token, cancel_event, mode,
+                        proxy_url, proxy_token, "cerebras",
+                    )
                 else:
                     full_text = self._stream_via_proxy(
                         cfg, model, system_prompt, messages,
@@ -741,6 +797,12 @@ class LLMClient:
                 full_text = self._stream_anthropic_direct(
                     cfg, model, system_prompt, messages,
                     optimized_images, on_token, cancel_event, mode,
+                )
+            elif provider == "cerebras":
+                # BYOK mode — direct to Cerebras
+                full_text = self._stream_cerebras_direct(
+                    cfg, model, system_prompt, messages,
+                    on_token, cancel_event, mode,
                 )
             else:
                 # BYOK mode — direct to OpenAI
@@ -764,6 +826,8 @@ class LLMClient:
     def _resolve_model(self, cfg, provider, messages, mode) -> str:
         if provider == "anthropic":
             user_model = cfg.get("anthropic_model", "claude-opus-4-5")
+        elif provider == "cerebras":
+            user_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:
             user_model = cfg.get("openai_model", "gpt-4o")
         return _auto_select_model(mode, messages, provider, user_model)
@@ -911,6 +975,21 @@ class LLMClient:
                 "max_tokens": max_tokens,
             }
             endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
+        elif provider == "cerebras":
+            # Cerebras uses OpenAI-compatible format — text only (no images)
+            cb_messages = [{"role": "system", "content": system_prompt}]
+            cb_messages.extend(
+                self._build_openai_messages(messages, None)
+            )
+            body = {
+                "model":       model,
+                "messages":    cb_messages,
+                "stream":      True,
+                "max_tokens":  max_tokens,
+                "temperature": 0.7,
+                "top_p":       1,
+            }
+            endpoint = f"{proxy_url}{self.PROXY_CEREBRAS_PATH}"
 
         # Headers — only our JWT, proxy handles provider auth
         headers = {
@@ -1197,6 +1276,102 @@ class LLMClient:
         total_ms = (time.time() - t0) * 1_000
         print(
             f"[llm] openai done  model={model}  "
+            f"TTFT={ttft_ms or 0:.0f} ms  total={total_ms:.0f} ms"
+        )
+        return "".join(full_text)
+
+    # ── Cerebras streaming ─────────────────────────────────────────────────────
+    # Cerebras provides an OpenAI-compatible API at api.cerebras.ai/v1.
+    # Uses the same SSE format as OpenAI, so parsing is identical.
+    # Text-only — no image/vision support.
+
+    def _stream_cerebras_direct(
+        self,
+        cfg:           dict,
+        model:         str,
+        system_prompt: str,
+        messages:      List[dict],
+        on_token:      Callable[[str], None],
+        cancel_event:  Optional[threading.Event],
+        mode:          str = "solve",
+    ) -> str:
+        api_key = cfg.get("cerebras_api_key", "").strip()
+        if not api_key:
+            raise RuntimeError(
+                "No Cerebras API key configured. Open Settings to add one."
+            )
+
+        http_client  = _pool.get_cerebras(api_key)
+        max_tokens   = self._get_max_tokens(cfg, mode)
+
+        # Build OpenAI-compatible messages (text only — no images)
+        cb_messages = [{"role": "system", "content": system_prompt}]
+        cb_messages.extend(self._build_openai_messages(messages, None))
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type":  "application/json",
+        }
+        body = {
+            "model":       model,
+            "messages":    cb_messages,
+            "stream":      True,
+            "max_tokens":  max_tokens,
+            "temperature": 0.7,
+            "top_p":       1,
+        }
+
+        full_text: list[str]       = []
+        t0         = time.time()
+        ttft_ms:   Optional[float] = None
+
+        with http_client.stream(
+            "POST", self.CEREBRAS_URL, headers=headers, json=body,
+        ) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if cancel_event and cancel_event.is_set():
+                    print("[llm] cerebras stream cancelled")
+                    break
+                if not line or not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    evt = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+
+                # Usage chunk (Cerebras includes usage in final chunk)
+                if evt.get("usage"):
+                    u = evt["usage"]
+                    print(
+                        f"[llm] cerebras usage — "
+                        f"prompt={u.get('prompt_tokens', 0)}  "
+                        f"completion={u.get('completion_tokens', 0)}  "
+                        f"total={u.get('total_tokens', 0)}"
+                    )
+
+                try:
+                    txt = evt["choices"][0]["delta"].get("content", "")
+                    if txt:
+                        if ttft_ms is None:
+                            ttft_ms = (time.time() - t0) * 1_000
+                            print(
+                                f"[llm] TTFT {ttft_ms:.0f} ms  "
+                                f"model={model}  mode={mode}  "
+                                f"max_tokens={max_tokens}  "
+                                f"provider=cerebras"
+                            )
+                        full_text.append(txt)
+                        on_token(txt)
+                except (KeyError, IndexError, AttributeError):
+                    continue
+
+        total_ms = (time.time() - t0) * 1_000
+        print(
+            f"[llm] cerebras done  model={model}  "
             f"TTFT={ttft_ms or 0:.0f} ms  total={total_ms:.0f} ms"
         )
         return "".join(full_text)

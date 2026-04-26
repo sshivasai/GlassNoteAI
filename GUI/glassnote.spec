@@ -110,6 +110,22 @@ hidden_imports = [
     "utils.tray",
     "utils.models",
     "utils.perf",
+
+    # ── SaaS modules (auth, cloud) ──────────────────────────────
+    "api",
+    "api.auth_client",
+    "api.login_ui",
+    "api.usage_reporter",
+    "api.pricing_client",
+
+    # ── Secure token storage ─────────────────────────────────────
+    "keyring",
+    "keyring.backends",
+    "keyring.backends.Windows",
+    "keyring.backends.fail",
+
+    # ── Pricing config ───────────────────────────────────────────
+    "pricing_config",
 ]
 
 # ── Data files ─────────────────────────────────────────────────────────────────

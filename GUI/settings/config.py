@@ -26,12 +26,14 @@ DEFAULTS = {
     # ── API Keys ───────────────────────────────────────────────
     "anthropic_api_key":  "",
     "openai_api_key":     "",
+    "cerebras_api_key":   "",
     "deepgram_api_key":   "",
 
     # ── Model settings ─────────────────────────────────────────
     "selected_provider":  "anthropic",
     "anthropic_model":    "claude-opus-4-5",
     "openai_model":       "gpt-4o",
+    "cerebras_model":     "llama3.1-8b",
     # User-configurable ceiling. Mode-specific caps in _get_max_tokens()
     # (e.g. 600 for interview) provide the actual per-request limits via
     # min(mode_cap, user_cap), so this high default won't overshoot.
