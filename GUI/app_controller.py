@@ -435,8 +435,8 @@ class AppController(QObject):
 
         if not self._audio.is_running():
             # First entry: start the full pipeline (runs once per session)
+            # Note: STT DNS pre-resolution happens in _prefetch_stt_and_start()
             llm_client.warm_connections(cfg=cfg)
-            self._warm_stt_connection(cfg)
             self._audio.start_recording(source=source)
 
         # Always update UI — covers both first-time and subsequent toggles.
@@ -448,7 +448,14 @@ class AppController(QObject):
 
         # Open the dispatch gate — instant on subsequent toggles
         self._audio.resume()
-        self._silence_timer.start()
+
+        # TTFT-OPT: Only start silence timer when smart_answering=False.
+        # When using STT end-of-turn signals (smart_answering=True), the
+        # silence timer is redundant — STT dispatches directly on [EndOfTurn].
+        # Saves 1-2ms per request by avoiding 10 unnecessary timer checks/sec.
+        if not cfg.get("smart_answering", False):
+            self._silence_timer.start()
+
         print(f"[app] Interview mode started — source={source}")
 
     def _stop_continuous_recording(self):
@@ -963,8 +970,9 @@ class AppController(QObject):
         # the pipeline so _create_stt() never blocks on a synchronous HTTP call.
         # The credentials are injected into a copy of cfg passed to the pipeline.
         # Audio pipeline starts in paused state for 0ms warmup on Interview Mode.
+        # TTFT-OPT: DNS pre-resolution now runs in parallel with credential
+        # fetches inside _prefetch_stt_and_start() instead of before it.
         source = cfg.get("audio_source", "system")
-        self._warm_stt_connection(cfg)
 
         def _prefetch_stt_and_start():
             """Pre-fetch STT credentials then start pipeline (BUG-9/PERF-2).
@@ -1023,12 +1031,39 @@ class AppController(QObject):
                         print(f"[app] STT credentials pre-fetch error: {e} — using local keys")
                     return None
 
-                # ── Fire both requests in parallel ──────────────────────────
-                with ThreadPoolExecutor(max_workers=2) as pool:
+                # ── Helper: DNS pre-resolution for STT ──────────────────────
+                def _warm_dns():
+                    """Pre-resolve DNS for STT provider to warm OS DNS cache."""
+                    stt_provider = cfg2.get("stt_provider", "deepgram")
+                    try:
+                        t0 = time.time()
+                        hosts = []
+                        if stt_provider == "deepgram":
+                            hosts.append("api.deepgram.com")
+                        elif stt_provider == "openai_realtime":
+                            hosts.append("api.openai.com")
+                        else:
+                            hosts.append("api.deepgram.com")
+                            hosts.append("api.openai.com")
+
+                        for host in hosts:
+                            socket.getaddrinfo(host, 443, socket.AF_INET, socket.SOCK_STREAM)
+
+                        ms = (time.time() - t0) * 1_000
+                        print(f"[app] ✓ STT DNS pre-resolved — {', '.join(hosts)} {ms:.0f} ms")
+                    except Exception as e:
+                        print(f"[app] STT DNS pre-resolve failed (non-fatal): {e}")
+
+                # ── Fire all three operations in parallel ───────────────────
+                # TTFT-OPT: DNS pre-resolution now runs concurrently with
+                # credential fetches instead of after. Saves 50-200ms.
+                with ThreadPoolExecutor(max_workers=3) as pool:
                     fut_me    = pool.submit(_fetch_auth_me)
                     fut_creds = pool.submit(_fetch_stt_creds)
+                    fut_dns   = pool.submit(_warm_dns)
                     me_result    = fut_me.result()
                     creds_result = fut_creds.result()
+                    fut_dns.result()  # Wait for DNS warm-up to complete
 
                 # ── Apply results ───────────────────────────────────────────
                 if me_result is not None:

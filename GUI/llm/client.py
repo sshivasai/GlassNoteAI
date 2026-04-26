@@ -671,14 +671,13 @@ class LLMClient:
 
         optimized_images = None
         if images:
-            t0 = time.time()
             # TTFT-OPT: images arriving here from the capture pipeline
             # (screenshot.py → _pil_to_base64) are already resized to
             # 768 px and format-detected (PNG for text, JPEG otherwise).
             # Re-processing them through _optimize_image() is a no-op
             # resize (768 < 1280 cap) that wastes 50-300 ms on the TTFT
-            # critical path.  We pass already_optimized=True so the
-            # function returns immediately without decoding.
+            # critical path.  Skip the entire optimization block when
+            # already_optimized=True to avoid hash computation and cache lookups.
             #
             # This is safe because:
             #   1. capture/screenshot.py already calls _pil_to_base64()
@@ -687,28 +686,36 @@ class LLMClient:
             #   3. _is_text_screenshot() re-detection is redundant — the
             #      screenshot module already made the PNG/JPEG decision.
             already_optimized = True
-            if len(images) == 1:
-                optimized_images = [
-                    _optimize_image_cached(images[0],
-                                           already_optimized=already_optimized)
-                ]
+            if already_optimized:
+                # Skip optimization entirely — images are pre-optimized by capture pipeline
+                optimized_images = images
+                print(
+                    f"[llm] image optimisation 0 ms "
+                    f"({len(images)} image(s))  [skipped — already optimized]"
+                )
             else:
-                with ThreadPoolExecutor(max_workers=min(len(images), 4)) as ex:
-                    optimized_images = list(
-                        ex.map(
-                            lambda img: _optimize_image_cached(
-                                img, already_optimized=already_optimized
-                            ),
-                            images,
+                t0 = time.time()
+                if len(images) == 1:
+                    optimized_images = [
+                        _optimize_image_cached(images[0],
+                                               already_optimized=already_optimized)
+                    ]
+                else:
+                    with ThreadPoolExecutor(max_workers=min(len(images), 4)) as ex:
+                        optimized_images = list(
+                            ex.map(
+                                lambda img: _optimize_image_cached(
+                                    img, already_optimized=already_optimized
+                                ),
+                                images,
+                            )
                         )
-                    )
-            ms = (time.time() - t0) * 1_000
-            print(
-                f"[llm] image optimisation "
-                f"{ms:.0f} ms "
-                f"({len(images)} image(s))"
-                f"{'  [skipped — already optimized]' if already_optimized else ''}"
-            )
+                ms = (time.time() - t0) * 1_000
+                print(
+                    f"[llm] image optimisation "
+                    f"{ms:.0f} ms "
+                    f"({len(images)} image(s))"
+                )
 
         try:
             # ── Route decision: proxy or direct ────────────────────────────

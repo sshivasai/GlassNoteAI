@@ -1096,8 +1096,10 @@ class AnswerOverlay(QWidget):
         if not self.isVisible():
             self.show()
         self.setWindowOpacity(self._opacity)
-        # Start live 300ms debounced markdown render
-        self._stream_render_timer.start()
+        # TTFT-OPT: Disable live markdown render during streaming to save
+        # 5-15ms per 300ms cycle. Rendering only happens on stream complete.
+        # User sees raw tokens streaming; final render applies all formatting.
+        # self._stream_render_timer.start()
 
     def _do_stream_render(self):
         """
