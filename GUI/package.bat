@@ -32,9 +32,9 @@ if /i "%PY_ARCH%"=="ARM64" (
     echo  You are using ARM64 Python. This will produce an ARM64 .exe
     echo  that ONLY runs on ARM64 Windows machines.
     echo.
-    echo  For an .exe that works on ALL Windows machines (x64 + ARM64^):
+    echo  For an .exe that works on ALL Windows machines ^(x64 + ARM64^):
     echo    1. Install x64 Python 3.11 from https://python.org/downloads/
-    echo       (Choose "Windows installer (64-bit)" — NOT ARM64)
+    echo       ^(Choose "Windows installer (64-bit^)" -- NOT ARM64^)
     echo    2. Re-run this script using that Python version.
     echo    Note: ARM64 Windows runs x64 .exe files via built-in emulation.
     echo.
