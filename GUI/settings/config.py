@@ -156,6 +156,22 @@ DEFAULTS = {
     # ── Process disguise (Task Manager / System Monitor) ──────
     "process_disguise_name": "Windows Audio Endpoint Builder",
 
+    # ── Resource limits ────────────────────────────────────────
+    "max_memory_mb": 1024,           # 1 GB
+    "max_queue_size": 50,            # Screenshot queue
+    "max_history_items": 100,        # Q&A history per session
+    "max_cache_size": 50,            # Response cache
+
+    # ── Accessibility ──────────────────────────────────────────
+    "high_contrast_mode": False,
+    "font_scale": 1.0,               # 1.0 = normal, 1.5 = 150%
+    "keyboard_navigation_hints": False,
+    "screen_reader_support": False,
+
+    # ── Telemetry (opt-in) ─────────────────────────────────────
+    "telemetry_opt_in": False,
+    "sentry_dsn": "",                # Set in production
+
     # ── Optimisation settings ──────────────────────────────────
     "use_response_cache": True,
     "use_prompt_cache":   True,

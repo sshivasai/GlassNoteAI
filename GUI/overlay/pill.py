@@ -303,7 +303,9 @@ class PillWindow(QWidget):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(signal)
         if width:
-            btn.setFixedWidth(width)  # ← prevents layout jitter when text changes state
+            # Use minimum width instead of fixed to handle DPI scaling better
+            btn.setMinimumWidth(width)
+            btn.setSizePolicy(btn.sizePolicy().horizontalPolicy(), btn.sizePolicy().verticalPolicy())
         return btn
 
     def _add_shadow(self):

@@ -25,11 +25,20 @@ engine = create_async_engine(
     _settings.database_url,
     echo=_settings.debug,
     pool_size=20,          # baseline connections
-    max_overflow=10,       # burst headroom
-    pool_timeout=30,       # wait for a connection
+    max_overflow=10,       # burst headroom (total 30 connections max)
+    pool_timeout=30,       # wait for a connection (seconds)
     pool_recycle=1800,     # recycle connections every 30 min
-    pool_pre_ping=True,    # verify connections before checkout
-    connect_args={"ssl": False} # ssl false means no ssl is required for local development
+    pool_pre_ping=True,    # verify connections before checkout (health check)
+    connect_args={
+        "ssl": False,      # ssl false for local development; set True in prod
+        "command_timeout": 60,  # Query timeout
+        "server_settings": {
+            "application_name": "glassnote-api",
+            "jit": "off",  # Disable JIT for predictable query performance
+        },
+    },
+    # Connection pool monitoring
+    pool_use_lifo=True,    # Reuse recent connections (better for keepalive)
 )
 
 
@@ -86,3 +95,37 @@ async def close_engine():
     """
     await engine.dispose()
     print("[db] ✓ Connection pool disposed")
+
+
+async def get_pool_status() -> dict:
+    """
+    Get connection pool status for monitoring.
+
+    Returns:
+        dict: Pool statistics
+    """
+    pool = engine.pool
+
+    return {
+        "size": pool.size(),
+        "checked_in": pool.checkedin(),
+        "checked_out": pool.checkedout(),
+        "overflow": pool.overflow(),
+        "total": pool.size() + pool.overflow(),
+    }
+
+
+async def health_check() -> bool:
+    """
+    Database health check.
+
+    Returns:
+        bool: True if database is reachable
+    """
+    try:
+        async with engine.begin() as conn:
+            await conn.execute("SELECT 1")
+        return True
+    except Exception as e:
+        print(f"[db] Health check failed: {e}")
+        return False

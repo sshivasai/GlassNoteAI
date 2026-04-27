@@ -230,13 +230,59 @@ class AppController(QObject):
 
     def _check_for_updates(self):
         """
-        [Future Scope] Check glassnote.ai for a newer version of the executable.
+        Check glassnote.ai for a newer version of the executable.
         If a new version is available, show a system notification or UI prompt
         directing the user to download the latest installer.
         """
-        # TODO: Implement HTTP GET to /api/public/version
-        # Compare semantic version with app_version from version_info.txt
-        pass
+        from utils.updater import check_for_updates, get_current_version, open_download_url
+
+        cfg = config.load_config()
+        api_url = cfg.get("glassnote_api_url", "").strip()
+
+        if not api_url:
+            return  # No API URL configured
+
+        current_ver = get_current_version()
+
+        def on_update_available(update_info):
+            """Handle update notification."""
+            latest = update_info.get("latest_version", "")
+            download_url = update_info.get("download_url", "")
+            is_critical = update_info.get("is_critical", False)
+
+            title = "Critical Update!" if is_critical else "Update Available"
+            message = (
+                f"GlassNote {latest} is available.\n"
+                f"You're on {current_ver}.\n\n"
+                f"Click to download."
+            )
+
+            # Show in overlay if pill is visible
+            if self.pill.isVisible():
+                self.overlay.set_error(
+                    f"**{title}**\n\n{message}\n\n"
+                    f"[Download from glassnote.ai]({download_url})"
+                )
+                self.overlay.show()
+                self.pill.set_overlay_visible(True)
+
+            # Also show tray notification
+            if hasattr(self, '_tray_manager'):
+                self._tray_manager.show_notification(title, message, duration_ms=10000)
+
+            print(f"[app] Update available: {current_ver} → {latest}")
+
+        def on_error(error_msg):
+            """Handle update check error."""
+            print(f"[app] Update check failed: {error_msg}")
+
+        check_for_updates(
+            current_version=current_ver,
+            api_url=api_url,
+            on_update_available=on_update_available,
+            on_error=on_error,
+            silent=True,  # Only notify if update is available
+        )
 
     def _poll_notifications(self):
         """
