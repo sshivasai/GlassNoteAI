@@ -23,9 +23,20 @@ from PyQt6.QtCore import Qt, QSize, pyqtSignal, QObject
 
 def _make_tray_icon() -> QIcon:
     """
-    Generate a minimal tray icon programmatically.
-    Small dark circle with a green dot — no image file needed.
+    Load the GlassNote logo for the system tray icon.
+    Falls back to programmatic icon if Logo.png is not found.
     """
+    # Try to load the logo image
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
+    if os.path.exists(logo_path):
+        icon = QIcon(logo_path)
+        if not icon.isNull():
+            return icon
+        print(f"[tray] Logo found but failed to load: {logo_path}")
+    else:
+        print(f"[tray] Logo not found at {logo_path}, using programmatic icon")
+
+    # Fallback: generate a minimal tray icon programmatically
     size = 64
     px = QPixmap(size, size)
     px.fill(Qt.GlobalColor.transparent)

@@ -47,17 +47,24 @@ def _reset_mss():
     _mss_instance = None
 
 
-def capture_fullscreen(monitor_index: int = 1) -> str:
+def capture_fullscreen(monitor_index: Optional[int] = None) -> str:
     """
     Capture screen. Uses saved region if configured, else full screen.
-    Returns base64-encoded PNG/JPEG string.
+
+    Args:
+        monitor_index: Optional monitor index (1=primary, 2=secondary, etc.)
+                       If None, uses the saved preference from config.
+
+    Returns:
+        str: base64-encoded PNG/JPEG string.
     """
     # Check if user has set a capture region.
     # config.load_config() is cheap — it's mtime-cached and only re-reads
     # the file when it has actually changed on disk.
     cfg = config.load_config()
-    region = cfg.get("capture_region", None)
 
+    # Check for saved region first
+    region = cfg.get("capture_region", None)
     if region and isinstance(region, dict):
         try:
             return capture_region(
@@ -66,6 +73,10 @@ def capture_fullscreen(monitor_index: int = 1) -> str:
             )
         except Exception as e:
             print(f"[screenshot] Region capture failed, using fullscreen: {e}")
+
+    # Use specified monitor or fall back to config
+    if monitor_index is None:
+        monitor_index = cfg.get("preferred_monitor", 1)
 
     return _capture_full(monitor_index)
 
@@ -203,3 +214,66 @@ def clear_region():
 def get_saved_region() -> Optional[dict]:
     """Get saved capture region or None."""
     return config.get("capture_region", None)
+
+
+def get_available_monitors() -> list[dict]:
+    """
+    Get list of available monitors with their dimensions.
+
+    Returns:
+        list[dict]: List of monitor info dicts with keys:
+                    index, width, height, x, y, is_primary
+    """
+    try:
+        sct = _get_mss()
+        monitors = []
+
+        for idx, mon in enumerate(sct.monitors):
+            if idx == 0:
+                # Index 0 is the "all monitors" virtual display — skip it
+                continue
+
+            monitors.append({
+                "index": idx,
+                "width": mon["width"],
+                "height": mon["height"],
+                "x": mon["left"],
+                "y": mon["top"],
+                "is_primary": (idx == 1),  # mss convention: monitor 1 is primary
+            })
+
+        return monitors
+
+    except Exception as e:
+        print(f"[screenshot] Failed to enumerate monitors: {e}")
+        return [{
+            "index": 1,
+            "width": 1920,
+            "height": 1080,
+            "x": 0,
+            "y": 0,
+            "is_primary": True,
+        }]
+
+
+def set_preferred_monitor(monitor_index: int) -> None:
+    """
+    Set the preferred monitor for captures.
+
+    Args:
+        monitor_index: Monitor index (1=primary, 2=secondary, etc.)
+    """
+    monitors = get_available_monitors()
+    valid_indices = [m["index"] for m in monitors]
+
+    if monitor_index not in valid_indices:
+        print(f"[screenshot] Invalid monitor index {monitor_index}, available: {valid_indices}")
+        return
+
+    config.set("preferred_monitor", monitor_index)
+    print(f"[screenshot] Preferred monitor set to {monitor_index}")
+
+
+def get_preferred_monitor() -> int:
+    """Get the preferred monitor index."""
+    return config.get("preferred_monitor", 1)

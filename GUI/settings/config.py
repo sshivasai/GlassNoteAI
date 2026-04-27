@@ -12,6 +12,11 @@ picks up the fresh values.
 
 This eliminates the ~200 µs disk read that was previously happening
 on every 100 ms silence-poll, every hotkey press, and every UI paint.
+
+Security
+--------
+API keys are stored in OS keyring (encrypted) when available, with
+plaintext JSON as fallback. Use set_secure() for sensitive values.
 """
 
 import json
@@ -19,6 +24,58 @@ import os
 import threading
 from pathlib import Path
 from typing import Any
+
+# ── Keyring support for secure API key storage ────────────────────────────────
+_KEYRING_SERVICE = "GlassNote"
+_KEYRING_AVAILABLE = False
+
+try:
+    import keyring
+    _KEYRING_AVAILABLE = True
+except ImportError:
+    keyring = None
+
+# Keys that should be stored securely in keyring instead of plaintext config
+_SECURE_KEYS = {
+    "anthropic_api_key",
+    "openai_api_key",
+    "cerebras_api_key",
+    "deepgram_api_key",
+}
+
+
+def _keyring_set(key: str, value: str) -> bool:
+    """Save a value to OS keyring. Returns True on success."""
+    if not _KEYRING_AVAILABLE or not value:
+        return False
+    try:
+        keyring.set_password(_KEYRING_SERVICE, key, value)
+        return True
+    except Exception as e:
+        print(f"[config] Keyring save failed for {key}: {e}")
+        return False
+
+
+def _keyring_get(key: str) -> str:
+    """Load a value from OS keyring. Returns empty string if not found."""
+    if not _KEYRING_AVAILABLE:
+        return ""
+    try:
+        value = keyring.get_password(_KEYRING_SERVICE, key)
+        return value or ""
+    except Exception as e:
+        print(f"[config] Keyring load failed for {key}: {e}")
+        return ""
+
+
+def _keyring_delete(key: str) -> None:
+    """Delete a value from OS keyring."""
+    if not _KEYRING_AVAILABLE:
+        return
+    try:
+        keyring.delete_password(_KEYRING_SERVICE, key)
+    except Exception:
+        pass
 
 CONFIG_PATH = Path.home() / ".glassnote" / "config.json"
 
@@ -70,6 +127,7 @@ DEFAULTS = {
     "auto_capture":           False,
     "auto_capture_interval":  5,
     "capture_region":         None,
+    "preferred_monitor":      1,  # 1=primary, 2=secondary, etc.
 
     # ── Audio settings ─────────────────────────────────────────
     "audio_source":       "system",
@@ -94,6 +152,9 @@ DEFAULTS = {
     "default_language":   "English",
     "simple_language":    False,
     "save_transcript":    True,
+
+    # ── Process disguise (Task Manager / System Monitor) ──────
+    "process_disguise_name": "Windows Audio Endpoint Builder",
 
     # ── Optimisation settings ──────────────────────────────────
     "use_response_cache": True,
@@ -130,8 +191,12 @@ def load_config() -> dict:
     since the last read (~50 ns).  Otherwise reads from disk (~200 µs)
     and updates the cache.
 
+    Sensitive API keys are loaded from OS keyring if available.
+
+    Thread-safe with proper file locking to prevent TOCTOU race conditions.
+
     Returns:
-        dict: Merged config (DEFAULTS + stored values).
+        dict: Merged config (DEFAULTS + stored values + keyring secrets).
     """
     global _cached_cfg, _cached_mtime
 
@@ -141,30 +206,54 @@ def load_config() -> dict:
         save_config(DEFAULTS.copy())
         return DEFAULTS.copy()
 
-    current_mtime = CONFIG_PATH.stat().st_mtime
-
+    # Check mtime under lock to prevent race condition
     with _cache_lock:
+        try:
+            current_mtime = CONFIG_PATH.stat().st_mtime
+        except FileNotFoundError:
+            # File was deleted between exists() check and stat() — create new
+            save_config(DEFAULTS.copy())
+            return DEFAULTS.copy()
+
         if _cached_cfg is not None and current_mtime == _cached_mtime:
             return _cached_cfg.copy()
 
-    # Cache miss — read from disk
-    with open(CONFIG_PATH, "r") as f:
-        stored = json.load(f)
+        # Cache miss — read from disk (still under lock)
+        try:
+            with open(CONFIG_PATH, "r", encoding='utf-8') as f:
+                stored = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            # File corrupted or deleted during read — recreate
+            print(f"[config] Load failed ({e}), recreating config file")
+            save_config(DEFAULTS.copy())
+            return DEFAULTS.copy()
 
-    # Always merge so new keys added to DEFAULTS appear automatically
-    merged = DEFAULTS.copy()
-    merged.update(stored)
+        # Always merge so new keys added to DEFAULTS appear automatically
+        merged = DEFAULTS.copy()
+        merged.update(stored)
 
-    with _cache_lock:
+        # Load secure keys from keyring (takes precedence over config file)
+        for key in _SECURE_KEYS:
+            keyring_value = _keyring_get(key)
+            if keyring_value:
+                merged[key] = keyring_value
+            # If not in keyring but in config, migrate it to keyring
+            elif merged.get(key):
+                if _keyring_set(key, merged[key]):
+                    # Successfully migrated to keyring — remove from config
+                    merged[key] = ""  # Will be saved as empty in config
+
         _cached_cfg   = merged
         _cached_mtime = current_mtime
 
-    return merged.copy()
+        return merged.copy()
 
 
 def save_config(cfg: dict) -> None:
     """
     Save config to disk and invalidate the in-memory cache.
+
+    Thread-safe atomic write using temp file + rename to prevent corruption.
 
     Args:
         cfg (dict): The config dict to persist.
@@ -172,8 +261,25 @@ def save_config(cfg: dict) -> None:
     global _cached_cfg, _cached_mtime
 
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(cfg, f, indent=2)
+
+    # Atomic write: write to temp file, then rename
+    # This prevents corruption if process is killed mid-write
+    temp_path = CONFIG_PATH.with_suffix('.tmp')
+    try:
+        with open(temp_path, "w", encoding='utf-8') as f:
+            json.dump(cfg, f, indent=2)
+
+        # Atomic rename (POSIX guarantees atomicity)
+        temp_path.replace(CONFIG_PATH)
+    except Exception as e:
+        print(f"[config] Save failed: {e}")
+        # Clean up temp file if it exists
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        raise
 
     # Invalidate cache — next load_config() will re-read
     with _cache_lock:
@@ -203,6 +309,51 @@ def set(key: str, value: Any) -> None:
     cfg = load_config()
     cfg[key] = value
     save_config(cfg)
+
+
+def set_secure(key: str, value: str) -> None:
+    """
+    Set a sensitive value (API key) securely in keyring.
+
+    Falls back to plaintext config if keyring is unavailable.
+
+    Args:
+        key: Config key (should be in _SECURE_KEYS)
+        value: The sensitive value to store
+    """
+    if key in _SECURE_KEYS and value:
+        if _keyring_set(key, value):
+            # Successfully saved to keyring — clear from config file
+            cfg = load_config()
+            cfg[key] = ""  # Empty string in config means "check keyring"
+            save_config(cfg)
+            print(f"[config] {key} saved to keyring (encrypted)")
+            return
+
+    # Fallback: save to config file
+    set(key, value)
+    print(f"[config] WARNING: {key} saved to plaintext config (keyring unavailable)")
+
+
+def get_secure(key: str, fallback: str = "") -> str:
+    """
+    Get a sensitive value, preferring keyring over config file.
+
+    Args:
+        key: Config key to retrieve
+        fallback: Default value if not found
+
+    Returns:
+        str: The value from keyring, config, or fallback
+    """
+    # Try keyring first
+    if key in _SECURE_KEYS:
+        value = _keyring_get(key)
+        if value:
+            return value
+
+    # Fall back to config file
+    return get(key, fallback)
 
 
 def reset() -> None:

@@ -27,7 +27,11 @@ def main():
     )
 
     app = QApplication(sys.argv)
-    app.setApplicationName("Windows Audio Endpoint Builder")  # disguised name
+
+    # Load disguised process name from config
+    from settings import config as _config
+    disguise_name = _config.get("process_disguise_name", "Windows Audio Endpoint Builder")
+    app.setApplicationName(disguise_name)
     app.setQuitOnLastWindowClosed(False)   # stay alive when all windows hidden
 
     # ── Pricing config — fetch from backend in background ──────────────────────

@@ -21,10 +21,8 @@ hidden_imports = [
 
     # ── Audio ──────────────────────────────────────────────────────────────
     "sounddevice",
-    "soundfile",
     "numpy",
     "numpy.core",
-    "numpy.core._methods",
     "numpy.lib",
     "numpy.lib.format",
     "scipy",
@@ -33,11 +31,7 @@ hidden_imports = [
     "scipy.special",
     "scipy.special.cython_special",
 
-    # ── LLM providers (collect ALL submodules dynamically) ─────────────────
-    *collect_submodules("anthropic"),
-    *collect_submodules("openai"),
-
-    # ── HTTP stack (critical — most "missing library" errors come from here)
+    # ── HTTP stack (critical — used for ALL API calls) ────────────────────
     "httpx",
     "httpx._transports",
     "httpx._transports.default",
@@ -69,9 +63,10 @@ hidden_imports = [
     "sniffio",
     "socksio",
 
-    # ── Deepgram ───────────────────────────────────────────────────────────
-    *collect_submodules("deepgram"),
+    # ── WebSockets (Deepgram & OpenAI Realtime streaming STT) ─────────────
     "websockets",
+    "websockets.sync",
+    "websockets.sync.client",
     "websockets.legacy",
     "websockets.legacy.client",
     "websockets.legacy.protocol",
@@ -80,7 +75,6 @@ hidden_imports = [
 
     # ── Document parsing ───────────────────────────────────────────────────
     "fitz",
-    "fitz.fitz",
     *collect_submodules("docx"),
 
     # ── Windows APIs ───────────────────────────────────────────────────────
@@ -106,27 +100,9 @@ hidden_imports = [
 
     # ── Networking / SSL / encoding ────────────────────────────────────────
     "certifi",
-    "urllib3",
     "charset_normalizer",
     "idna",
     "idna.codec",
-
-    # ── Pydantic (used by anthropic/openai SDKs) ──────────────────────────
-    *collect_submodules("pydantic"),
-    *collect_submodules("pydantic_core"),
-    "annotated_types",
-    "typing_extensions",
-
-    # ── Token counting (used by openai SDK) ────────────────────────────────
-    "tiktoken",
-    "tiktoken_ext",
-    "tiktoken_ext.openai_public",
-    "regex",
-    "regex._regex",
-
-    # ── JSON / data validation ─────────────────────────────────────────────
-    "jsonschema",
-    "jsonschema.validators",
 
     # ── Async ──────────────────────────────────────────────────────────────
     "asyncio",
@@ -202,18 +178,6 @@ try:
 except Exception:
     pass
 
-# anthropic SDK data files (model configs, etc.)
-try:
-    datas += collect_data_files("anthropic")
-except Exception:
-    pass
-
-# openai SDK data files
-try:
-    datas += collect_data_files("openai")
-except Exception:
-    pass
-
 # PyQt6 plugins (needed for proper rendering)
 try:
     datas += collect_data_files("PyQt6")
@@ -226,29 +190,15 @@ try:
 except Exception:
     pass
 
-# Deepgram SDK data
+# websockets package data
 try:
-    datas += collect_data_files("deepgram")
+    datas += collect_data_files("websockets")
 except Exception:
     pass
 
 # python-docx templates (required for reading .docx)
 try:
     datas += collect_data_files("docx")
-except Exception:
-    pass
-
-# pydantic core native lib
-try:
-    datas += collect_data_files("pydantic")
-    datas += collect_data_files("pydantic_core")
-except Exception:
-    pass
-
-# tiktoken encoding data (BPE merge files)
-try:
-    datas += collect_data_files("tiktoken")
-    datas += collect_data_files("tiktoken_ext")
 except Exception:
     pass
 
@@ -289,7 +239,7 @@ a = Analysis(
         "notebook",
         "pytest",
         "setuptools",
-        "html",
+        # Note: "html" module is used by overlay/answer.py, DO NOT exclude
         "http.server",
         "xmlrpc",
         "unittest",

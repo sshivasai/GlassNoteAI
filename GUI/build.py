@@ -90,11 +90,28 @@ def clean_build():
     print("Cleaning previous build artifacts...")
     print("=" * 60)
 
-    folders = ["build", "dist", "__pycache__"]
+    folders = ["build", "__pycache__"]
     for folder in folders:
         if os.path.exists(folder):
             shutil.rmtree(folder)
             print(f"  Removed {folder}/")
+
+    # Clean dist folder but preserve Inno Setup installer if it exists
+    if os.path.exists("dist"):
+        for item in os.listdir("dist"):
+            item_path = os.path.join("dist", item)
+            # Skip the Inno Setup installer exe (might be locked/in use)
+            if item.endswith("_Setup.exe") or item.endswith("_Setup_v") and item.endswith(".exe"):
+                print(f"  Skipped {item} (installer)")
+                continue
+            try:
+                if os.path.isfile(item_path):
+                    os.remove(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            except PermissionError:
+                print(f"  Skipped {item} (in use)")
+        print(f"  Cleaned dist/")
 
     # Remove .spec generated ones (keep our custom one)
     for f in os.listdir("."):
@@ -151,10 +168,8 @@ hidden_imports = [
 
     # ── Audio ──────────────────────────────────────────────────────────────
     "sounddevice",
-    "soundfile",
     "numpy",
     "numpy.core",
-    "numpy.core._methods",
     "numpy.lib",
     "numpy.lib.format",
     "scipy",
@@ -207,7 +222,6 @@ hidden_imports = [
 
     # ── Document parsing ───────────────────────────────────────────────────
     "fitz",
-    "fitz.fitz",
     *collect_submodules("docx"),
 
     # ── Windows APIs ───────────────────────────────────────────────────────
@@ -372,7 +386,7 @@ a = Analysis(
         "notebook",
         "pytest",
         "setuptools",
-        "html",
+        # Note: "html" module is used by overlay/answer.py, DO NOT exclude
         "http.server",
         "xmlrpc",
         "unittest",
@@ -634,7 +648,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
 ; ── Windows version requirement ─────────────────────────────────────────────
-MinVersion=10.0.17763   ; Windows 10 1809 minimum
+; Version check handled in [Code] section below
 
 ; ── Uninstaller ─────────────────────────────────────────────────────────────
 Uninstallable=yes
@@ -747,15 +761,38 @@ begin
 end;
 
 (* ── Minimum Windows version check ──────────────────────────────────────────
-   Block installation on 32-bit Windows or versions older than Win10.      *)
+   Block installation on 32-bit Windows or versions older than Win10.
+   Windows version numbers:
+     - Windows 7:   6.1
+     - Windows 8:   6.2
+     - Windows 8.1: 6.3
+     - Windows 10:  10.0
+     - Windows 11:  10.0 (same as Win10, but higher build)               *)
 
 function InitializeSetup(): Boolean;
+var
+  Version: TWindowsVersion;
 begin
   Result := True;
+
+  // Check for 64-bit Windows
   if not IsWin64 then
   begin
     MsgBox(
-      '{APP_NAME} requires a 64-bit version of Windows 10 or later.',
+      '{{#AppName}} requires a 64-bit version of Windows 10 or later.',
+      mbError, MB_OK
+    );
+    Result := False;
+    Exit;
+  end;
+
+  // Check for Windows 10 or later (version 10.0+)
+  GetWindowsVersionEx(Version);
+  if Version.Major < 10 then
+  begin
+    MsgBox(
+      '{{#AppName}} requires Windows 10 or later.' + #13#10 +
+      'Your Windows version: ' + IntToStr(Version.Major) + '.' + IntToStr(Version.Minor),
       mbError, MB_OK
     );
     Result := False;

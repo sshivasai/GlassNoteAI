@@ -76,10 +76,14 @@ def _fast_image_hash(b64: str) -> str:
 class _ResponseCache:
     MAX_SIZE    = 50
     TTL_SECONDS = 1_800
+    CLEANUP_INTERVAL = 300  # Clean expired entries every 5 minutes
 
     def __init__(self):
         self._cache: OrderedDict[str, tuple[str, float]] = OrderedDict()
         self._lock  = threading.Lock()
+        self._cleanup_thread: Optional[threading.Thread] = None
+        self._cleanup_active = False
+        self._start_cleanup_thread()
 
     def _make_key(self, provider, model, system_prompt,
                   messages, images, mode,
@@ -127,6 +131,47 @@ class _ResponseCache:
     def clear(self):
         with self._lock:
             self._cache.clear()
+
+    def _start_cleanup_thread(self):
+        """Start background thread to periodically remove expired entries."""
+        if self._cleanup_active:
+            return
+
+        self._cleanup_active = True
+
+        def _cleanup_loop():
+            while self._cleanup_active:
+                # Sleep first, then clean
+                for _ in range(self.CLEANUP_INTERVAL * 2):  # Check every 0.5s if we should stop
+                    if not self._cleanup_active:
+                        return
+                    time.sleep(0.5)
+
+                # Remove expired entries
+                now = time.time()
+                with self._lock:
+                    expired = [
+                        k for k, (_, ts) in self._cache.items()
+                        if now - ts > self.TTL_SECONDS
+                    ]
+                    for k in expired:
+                        del self._cache[k]
+
+                if expired:
+                    print(f"[llm] Cache cleanup: removed {len(expired)} expired entries")
+
+        self._cleanup_thread = threading.Thread(
+            target=_cleanup_loop,
+            daemon=True,
+            name="cache-cleanup"
+        )
+        self._cleanup_thread.start()
+
+    def stop_cleanup(self):
+        """Stop the background cleanup thread."""
+        self._cleanup_active = False
+        if self._cleanup_thread:
+            self._cleanup_thread.join(timeout=1.0)
 
 
 _response_cache = _ResponseCache()
@@ -284,6 +329,9 @@ class _ConnectionPool:
 
     @staticmethod
     def _make_client() -> httpx.Client:
+        """Create HTTP client with explicit SSL verification."""
+        import certifi
+
         return httpx.Client(
             http2   = True,
             timeout = httpx.Timeout(60.0, connect=10.0),
@@ -292,6 +340,7 @@ class _ConnectionPool:
                 max_connections           = 10,
                 keepalive_expiry          = 300,
             ),
+            verify  = certifi.where(),  # Explicit SSL certificate verification
         )
 
     def get_anthropic(self, api_key: str) -> httpx.Client:
