@@ -4,90 +4,149 @@
 # Re-run build.py to regenerate.
 
 import sys
+import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 # ── Hidden imports ─────────────────────────────────────────────────────────────
-# Modules that PyInstaller misses with static analysis
+# Modules that PyInstaller misses with static analysis.
+# If you get "ModuleNotFoundError" on another machine, add it here.
 
 hidden_imports = [
-    # PyQt6
+    # ── PyQt6 ──────────────────────────────────────────────────────────────
     "PyQt6.QtCore",
     "PyQt6.QtGui",
     "PyQt6.QtWidgets",
     "PyQt6.QtNetwork",
     "PyQt6.sip",
 
-    # Audio
+    # ── Audio ──────────────────────────────────────────────────────────────
     "sounddevice",
     "soundfile",
     "numpy",
+    "numpy.core",
+    "numpy.core._methods",
+    "numpy.lib",
+    "numpy.lib.format",
     "scipy",
     "scipy.signal",
     "scipy.signal._upfirdn_apply",
+    "scipy.special",
+    "scipy.special.cython_special",
 
-    # LLM providers
-    "anthropic",
-    "anthropic._streaming",
-    "anthropic.types",
-    "openai",
-    "openai._streaming",
+    # ── LLM providers (collect ALL submodules dynamically) ─────────────────
+    *collect_submodules("anthropic"),
+    *collect_submodules("openai"),
+
+    # ── HTTP stack (critical — most "missing library" errors come from here)
     "httpx",
+    "httpx._transports",
+    "httpx._transports.default",
     "httpcore",
+    "httpcore._async",
+    "httpcore._sync",
+    "httpcore._backends",
+    "httpcore._backends.anyio",
+    "h11",
+    "h11._connection",
+    "h11._events",
+    "h11._state",
     "h2",
     "h2.connection",
     "h2.config",
+    "h2.events",
+    "h2.settings",
+    "h2.stream",
     "hpack",
+    "hpack.hpack",
+    "hpack.table",
+    "hyperframe",
+    "hyperframe.frame",
+    "anyio",
+    "anyio._core",
+    "anyio._core._eventloop",
+    "anyio._backends",
+    "anyio._backends._asyncio",
+    "sniffio",
+    "socksio",
 
-    # Deepgram
-    "deepgram",
-    "deepgram.audio",
-    "deepgram.listen",
-    "deepgram.core",
-    "deepgram.core.events",
+    # ── Deepgram ───────────────────────────────────────────────────────────
+    *collect_submodules("deepgram"),
     "websockets",
     "websockets.legacy",
+    "websockets.legacy.client",
+    "websockets.legacy.protocol",
+    "websockets.frames",
+    "websockets.http11",
 
-    # Document parsing
+    # ── Document parsing ───────────────────────────────────────────────────
     "fitz",
-    "docx",
-    "docx.oxml",
+    "fitz.fitz",
+    *collect_submodules("docx"),
 
-    # Windows APIs
+    # ── Windows APIs ───────────────────────────────────────────────────────
     "win32gui",
     "win32con",
     "win32api",
+    "pywintypes",
     "ctypes",
     "ctypes.wintypes",
 
-    # Image processing
+    # ── Image processing ───────────────────────────────────────────────────
     "PIL",
     "PIL.Image",
     "PIL.ImageStat",
+    "PIL.ImageDraw",
     "mss",
     "mss.tools",
+    "mss.windows",
 
-    # Hotkeys
+    # ── Hotkeys ────────────────────────────────────────────────────────────
     "keyboard",
+    "keyboard._winkeyboard",
 
-    # Networking
+    # ── Networking / SSL / encoding ────────────────────────────────────────
     "certifi",
     "urllib3",
     "charset_normalizer",
+    "idna",
+    "idna.codec",
 
-    # Async
+    # ── Pydantic (used by anthropic/openai SDKs) ──────────────────────────
+    *collect_submodules("pydantic"),
+    *collect_submodules("pydantic_core"),
+    "annotated_types",
+    "typing_extensions",
+
+    # ── Token counting (used by openai SDK) ────────────────────────────────
+    "tiktoken",
+    "tiktoken_ext",
+    "tiktoken_ext.openai_public",
+    "regex",
+    "regex._regex",
+
+    # ── JSON / data validation ─────────────────────────────────────────────
+    "jsonschema",
+    "jsonschema.validators",
+
+    # ── Async ──────────────────────────────────────────────────────────────
     "asyncio",
     "asyncio.events",
+    "asyncio.base_events",
+    "asyncio.selector_events",
+    "asyncio.windows_events",
+    "asyncio.proactor_events",
     "threading",
     "concurrent.futures",
+    "concurrent.futures.thread",
 
-    # App modules
+    # ── App modules ────────────────────────────────────────────────────────
     "app_controller",
     "overlay.pill",
     "overlay.answer",
     "overlay.ticker",
     "audio.pipeline",
     "audio.recorder",
-    "audio.stt_whisper",
+    "audio.stt_openai_realtime",
     "audio.stt_deepgram",
     "audio.voice_gate",
     "capture.screenshot",
@@ -111,46 +170,102 @@ hidden_imports = [
     "utils.models",
     "utils.perf",
 
-    # ── SaaS modules (auth, cloud) ──────────────────────────────
+    # ── SaaS modules (auth, cloud) ─────────────────────────────────────────
     "api",
     "api.auth_client",
     "api.login_ui",
     "api.usage_reporter",
-    "api.pricing_client",
 
-    # ── Secure token storage ─────────────────────────────────────
+    # ── Secure token storage ────────────────────────────────────────────────
     "keyring",
     "keyring.backends",
-    "keyring.backends.Windows",
-    "keyring.backends.fail",
+    "keyring.backends.Windows",   # Windows Credential Manager
+    "keyring.backends.fail",       # Graceful fallback
 
-    # ── Pricing config ───────────────────────────────────────────
+    # ── Pricing config (single source of truth) ────────────────────────────
     "pricing_config",
 ]
 
 # ── Data files ─────────────────────────────────────────────────────────────────
 datas = []
 
-# Collect SSL certificates (required for HTTPS API calls)
+# SSL certificates (required for ALL HTTPS calls)
 try:
     import certifi
     datas += [(certifi.where(), "certifi")]
 except ImportError:
     pass
 
-# Collect httpx certs
+# httpx package data (transport configs, etc.)
 try:
-    import httpx
-    import os
-    httpx_dir = os.path.dirname(httpx.__file__)
-    datas += [(httpx_dir, "httpx")]
-except ImportError:
+    datas += collect_data_files("httpx")
+except Exception:
     pass
 
-# Collect PyQt6 plugins (needed for proper rendering)
+# anthropic SDK data files (model configs, etc.)
 try:
-    from PyInstaller.utils.hooks import collect_data_files
+    datas += collect_data_files("anthropic")
+except Exception:
+    pass
+
+# openai SDK data files
+try:
+    datas += collect_data_files("openai")
+except Exception:
+    pass
+
+# PyQt6 plugins (needed for proper rendering)
+try:
     datas += collect_data_files("PyQt6")
+except Exception:
+    pass
+
+# sounddevice portaudio binaries
+try:
+    datas += collect_data_files("sounddevice")
+except Exception:
+    pass
+
+# Deepgram SDK data
+try:
+    datas += collect_data_files("deepgram")
+except Exception:
+    pass
+
+# python-docx templates (required for reading .docx)
+try:
+    datas += collect_data_files("docx")
+except Exception:
+    pass
+
+# pydantic core native lib
+try:
+    datas += collect_data_files("pydantic")
+    datas += collect_data_files("pydantic_core")
+except Exception:
+    pass
+
+# tiktoken encoding data (BPE merge files)
+try:
+    datas += collect_data_files("tiktoken")
+    datas += collect_data_files("tiktoken_ext")
+except Exception:
+    pass
+
+# App logo
+if os.path.exists("Logo.png"):
+    datas += [("Logo.png", ".")]
+
+# ── Binaries (native DLLs that PyInstaller may miss) ──────────────────────────
+binaries = []
+
+# sounddevice ships with _sounddevice_data containing portaudio DLL
+try:
+    import _sounddevice_data
+    pa_dir = os.path.dirname(_sounddevice_data.__file__)
+    for fname in os.listdir(pa_dir):
+        if fname.endswith(".dll"):
+            binaries += [(os.path.join(pa_dir, fname), "_sounddevice_data")]
 except Exception:
     pass
 
@@ -158,7 +273,7 @@ except Exception:
 a = Analysis(
     ["main.py"],
     pathex=["."],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hidden_imports,
     hookspath=[],
@@ -174,7 +289,6 @@ a = Analysis(
         "notebook",
         "pytest",
         "setuptools",
-        "email",
         "html",
         "http.server",
         "xmlrpc",

@@ -1,5 +1,5 @@
 # ===== File: requirements.txt =====
-# InterviewAssist — Python dependencies
+# GlassNote — Python dependencies
 # Install: pip install -r requirements.txt
 
 # ── UI Framework ───────────────────────────────────────────────
@@ -9,21 +9,17 @@ PyQt6>=6.6.0
 mss>=9.0.0
 Pillow>=10.0.0
 
-# ── LLM Providers ──────────────────────────────────────────────
-anthropic>=0.25.0
-openai>=1.30.0
-
-# ── HTTP/2 Connection Pooling ──────────────────────────────────
+# ── HTTP Client (used for ALL API calls - Anthropic, OpenAI, Cerebras, etc.) ──
 httpx[http2]>=0.27.0
 
-# sounddevice 0.5.x ships libportaudioarm64.dll on win_amd64 (upstream bug).
-# Pin to 0.4.6 which bundles the correct x64 PortAudio DLL.
+# ── Audio Capture & Processing ─────────────────────────────────
+# sounddevice 0.5.x ships incorrect PortAudio DLL on some systems.
+# Pin to 0.4.6 which has correct binaries for both x64 and ARM64.
 sounddevice==0.4.6
 numpy>=1.24.0
 scipy>=1.11.0
 
-# ── STT — Deepgram (optional but recommended) ──────────────────
-deepgram-sdk>=3.0.0
+# ── WebSocket for Streaming STT (Deepgram, OpenAI Realtime) ───
 websockets>=12.0
 
 # ── Hotkeys ────────────────────────────────────────────────────
@@ -36,8 +32,8 @@ python-docx>=1.1.0
 # ── Windows APIs ───────────────────────────────────────────────
 pywin32>=306
 
-# ── Secure storage (API keys + JWT tokens) ─────────────────────
+# ── Secure Storage (API keys + JWT tokens) ─────────────────────
 keyring>=24.0.0
 
-# ── Build ──────────────────────────────────────────────────────
+# ── Build Tool ─────────────────────────────────────────────────
 pyinstaller>=6.0.0

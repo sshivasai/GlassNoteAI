@@ -31,18 +31,16 @@ REQUIRED = [
     ("PyQt6",             "PyQt6",             True),
     ("mss",               "mss",               True),
     ("PIL",               "Pillow",            True),
-    ("anthropic",         "anthropic",         True),
-    ("openai",            "openai",            True),
+    ("httpx",             "httpx[http2]",      True),   # HTTP client for all APIs
     ("sounddevice",       "sounddevice",       True),
     ("numpy",             "numpy",             True),
+    ("scipy",             "scipy",             True),
+    ("websockets",        "websockets",        True),   # For Deepgram & OpenAI Realtime
     ("keyboard",          "keyboard",          True),
     ("fitz",              "PyMuPDF",           True),
     ("docx",              "python-docx",       True),
-    ("scipy",             "scipy",             True),
-    ("httpx",             "httpx[http2]",      True),
     ("keyring",           "keyring",           True),   # Secure token storage
-    ("deepgram",          "deepgram-sdk",      False),  # Optional
-    ("win32gui",          "pywin32",           False),  # Optional
+    ("win32gui",          "pywin32",           False),  # Optional Windows APIs
     ("PyInstaller",       "pyinstaller",       True),
 ]
 
@@ -62,13 +60,13 @@ def check_dependencies():
     for import_name, pip_name, critical in REQUIRED:
         try:
             importlib.import_module(import_name)
-            print(f"  ✓  {pip_name}")
+            print(f"  [OK]  {pip_name}")
         except ImportError:
             if critical:
-                print(f"  ✗  {pip_name}  ← MISSING (required)")
+                print(f"  [MISSING]  {pip_name}  <- REQUIRED")
                 missing_critical.append(pip_name)
             else:
-                print(f"  ⚠  {pip_name}  ← missing (optional)")
+                print(f"  [WARN]  {pip_name}  <- missing (optional)")
                 missing_optional.append(pip_name)
 
     if missing_optional:
@@ -76,11 +74,11 @@ def check_dependencies():
         print(f"  pip install {' '.join(missing_optional)}")
 
     if missing_critical:
-        print(f"\n❌ Install missing required packages:")
+        print(f"\n[ERROR] Install missing required packages:")
         print(f"  pip install {' '.join(missing_critical)}")
         sys.exit(1)
 
-    print("\n✓ All required dependencies present.\n")
+    print("\n[OK] All required dependencies present.\n")
 
 
 def clean_build():
@@ -120,7 +118,7 @@ def write_spec():
     with open("glassnote.spec", "w", encoding="utf-8") as f:
         f.write(spec_content)
 
-    print("  ✓ glassnote.spec written\n")
+    print("  [OK] glassnote.spec written\n")
 
 
 def _generate_spec() -> str:
@@ -165,11 +163,7 @@ hidden_imports = [
     "scipy.special",
     "scipy.special.cython_special",
 
-    # ── LLM providers (collect ALL submodules dynamically) ─────────────────
-    *collect_submodules("anthropic"),
-    *collect_submodules("openai"),
-
-    # ── HTTP stack (critical — most "missing library" errors come from here)
+    # ── HTTP stack (critical — used for ALL API calls) ────────────────────
     "httpx",
     "httpx._transports",
     "httpx._transports.default",
@@ -201,9 +195,10 @@ hidden_imports = [
     "sniffio",
     "socksio",
 
-    # ── Deepgram ───────────────────────────────────────────────────────────
-    *collect_submodules("deepgram"),
+    # ── WebSockets (Deepgram & OpenAI Realtime streaming STT) ─────────────
     "websockets",
+    "websockets.sync",
+    "websockets.sync.client",
     "websockets.legacy",
     "websockets.legacy.client",
     "websockets.legacy.protocol",
@@ -238,27 +233,9 @@ hidden_imports = [
 
     # ── Networking / SSL / encoding ────────────────────────────────────────
     "certifi",
-    "urllib3",
     "charset_normalizer",
     "idna",
     "idna.codec",
-
-    # ── Pydantic (used by anthropic/openai SDKs) ──────────────────────────
-    *collect_submodules("pydantic"),
-    *collect_submodules("pydantic_core"),
-    "annotated_types",
-    "typing_extensions",
-
-    # ── Token counting (used by openai SDK) ────────────────────────────────
-    "tiktoken",
-    "tiktoken_ext",
-    "tiktoken_ext.openai_public",
-    "regex",
-    "regex._regex",
-
-    # ── JSON / data validation ─────────────────────────────────────────────
-    "jsonschema",
-    "jsonschema.validators",
 
     # ── Async ──────────────────────────────────────────────────────────────
     "asyncio",
@@ -334,18 +311,6 @@ try:
 except Exception:
     pass
 
-# anthropic SDK data files (model configs, etc.)
-try:
-    datas += collect_data_files("anthropic")
-except Exception:
-    pass
-
-# openai SDK data files
-try:
-    datas += collect_data_files("openai")
-except Exception:
-    pass
-
 # PyQt6 plugins (needed for proper rendering)
 try:
     datas += collect_data_files("PyQt6")
@@ -358,29 +323,15 @@ try:
 except Exception:
     pass
 
-# Deepgram SDK data
+# websockets package data
 try:
-    datas += collect_data_files("deepgram")
+    datas += collect_data_files("websockets")
 except Exception:
     pass
 
 # python-docx templates (required for reading .docx)
 try:
     datas += collect_data_files("docx")
-except Exception:
-    pass
-
-# pydantic core native lib
-try:
-    datas += collect_data_files("pydantic")
-    datas += collect_data_files("pydantic_core")
-except Exception:
-    pass
-
-# tiktoken encoding data (BPE merge files)
-try:
-    datas += collect_data_files("tiktoken")
-    datas += collect_data_files("tiktoken_ext")
 except Exception:
     pass
 
@@ -520,7 +471,7 @@ VSVersionInfo(
 """
     with open("version_info.txt", "w", encoding="utf-8") as f:
         f.write(content)
-    print("  ✓ version_info.txt written")
+    print("  [OK] version_info.txt written")
 
 
 def run_pyinstaller() -> bool:
@@ -567,11 +518,11 @@ def post_build():
         exe_path = os.path.join("dist", f"{APP_NAME}.exe")
 
     if not os.path.exists(exe_path):
-        print("❌ Exe not found in dist/")
+        print("[ERROR] Exe not found in dist/")
         return False
 
     size_mb = os.path.getsize(exe_path) / (1024 * 1024)
-    print(f"  ✓ {exe_path}")
+    print(f"  [OK] {exe_path}")
     print(f"  Size: {size_mb:.1f} MB")
 
     # Create release folder
@@ -815,7 +766,7 @@ end;
     with open(iss_path, "w", encoding="utf-8") as f:
         f.write(iss_content)
 
-    print(f"  ✓ Inno Setup script: {os.path.abspath(iss_path)}")
+    print(f"  [OK] Inno Setup script: {os.path.abspath(iss_path)}")
     print()
     print("  To build the Windows installer:")
     print("  1. Install Inno Setup from https://jrsoftware.org/isinfo.php")
@@ -843,7 +794,7 @@ def report(success: bool):
             if os.path.exists(exe_path) else 0
         )
 
-        print(f"✅ BUILD SUCCESSFUL")
+        print(f"[SUCCESS] BUILD SUCCESSFUL")
         print(f"   Exe:     {os.path.abspath(exe_path)}")
         print(f"   Size:    {size_mb:.1f} MB")
         print(f"   Release: {os.path.abspath(os.path.join('dist', 'release'))}/")
@@ -852,7 +803,7 @@ def report(success: bool):
         print(f"\nTo distribute:")
         print(f"   Share the file in dist\\release\\")
     else:
-        print("❌ BUILD FAILED")
+        print("[FAILED] BUILD FAILED")
         print("   Check the PyInstaller output above for errors.")
         print("\nCommon fixes:")
         print("   pip install pyinstaller --upgrade")

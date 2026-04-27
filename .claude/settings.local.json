@@ -5,7 +5,8 @@
       "Bash(python -m uvicorn app.main:app --port 8000)",
       "Bash(curl -s -X POST http://localhost:8000/v1/proxy/openai -H 'Content-Type: application/json' -d '{\"model\":\"gpt-5.4-nano\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}],\"stream\":true,\"max_tokens\":10}')",
       "Bash(tee backend.log)",
-      "Bash(cmd.exe /c package.bat)"
+      "Bash(cmd.exe /c package.bat)",
+      "Bash(python -m venv .venv-build)"
     ]
   }
 }

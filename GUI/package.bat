@@ -2,7 +2,7 @@
 setlocal EnableDelayedExpansion
 
 echo ============================================================
-echo  GlassNote — Clean Isolated Build
+echo  GlassNote -- Clean Isolated Build
 echo ============================================================
 echo.
 
@@ -23,9 +23,6 @@ echo  Architecture: %PY_ARCH%
 echo.
 
 REM ── WARN if building with ARM64 Python ───────────────────────────────────────
-REM  An ARM64 exe only runs on ARM64 Windows.
-REM  An x64 exe runs on BOTH x64 and ARM64 Windows (via emulation).
-REM  For maximum compatibility, build with x64 Python.
 if /i "%PY_ARCH%"=="ARM64" (
     echo  *** ARCHITECTURE WARNING ***
     echo.
@@ -36,12 +33,9 @@ if /i "%PY_ARCH%"=="ARM64" (
     echo    1. Install x64 Python 3.11 from https://python.org/downloads/
     echo       ^(Choose "Windows installer (64-bit^)" -- NOT ARM64^)
     echo    2. Re-run this script using that Python version.
-    echo    Note: ARM64 Windows runs x64 .exe files via built-in emulation.
     echo.
     echo  Press any key to continue anyway with ARM64, or close to cancel.
     pause
-    echo.
-    echo  Continuing ARM64 build...
     echo.
 )
 
@@ -58,6 +52,7 @@ REM ── Create fresh isolated virtual environment ─────────
 echo  Creating clean virtual environment (.venv-build)...
 python -m venv .venv-build
 if errorlevel 1 (
+    echo.
     echo [ERROR] Failed to create virtual environment.
     pause
     exit /b 1
@@ -65,18 +60,26 @@ if errorlevel 1 (
 
 REM ── Activate the virtual environment ─────────────────────────────────────────
 call .venv-build\Scripts\activate.bat
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Failed to activate virtual environment.
+    pause
+    exit /b 1
+)
 
 REM ── Upgrade pip silently ──────────────────────────────────────────────────────
 echo  Upgrading pip...
-python -m pip install --upgrade pip --quiet
-
-REM ── FIX: Install sounddevice 0.4.6 FIRST ─────────────────────────────────────
-REM  sounddevice 0.5.x ships a broken PortAudio DLL on Windows ARM64 and
-REM  some x64 machines (upstream packaging bug — error 0x7e on import).
-REM  0.4.6 has correct binaries for both architectures.
-echo  Installing sounddevice 0.4.6 (PortAudio stability fix)...
-pip install "sounddevice==0.4.6" --quiet
+python -m pip install --upgrade pip >nul 2>&1
 if errorlevel 1 (
+    echo.
+    echo [WARNING] Failed to upgrade pip, continuing anyway...
+)
+
+REM ── Install sounddevice 0.4.6 FIRST ───────────────────────────────────────────
+echo  Installing sounddevice 0.4.6 (PortAudio stability fix)...
+pip install "sounddevice==0.4.6" >nul 2>&1
+if errorlevel 1 (
+    echo.
     echo [ERROR] Failed to install sounddevice 0.4.6.
     call deactivate
     pause
@@ -85,7 +88,7 @@ if errorlevel 1 (
 
 REM ── Verify PortAudio loads ────────────────────────────────────────────────────
 echo  Verifying PortAudio DLL loads...
-python -c "import sounddevice" 2>nul
+python -c "import sounddevice; print('OK')" >nul 2>&1
 if errorlevel 1 (
     echo.
     echo [ERROR] PortAudio DLL failed to load.
@@ -100,13 +103,19 @@ echo   OK
 
 REM ── Install all remaining dependencies ───────────────────────────────────────
 echo  Installing remaining dependencies from requirements.txt...
-pip install -r requirements.txt --quiet
-if errorlevel 1 (
-    echo [ERROR] Dependency installation failed.
+echo  (This may take 2-5 minutes on first run...)
+echo.
+pip install -r requirements.txt
+set INSTALL_EXIT=%errorlevel%
+if %INSTALL_EXIT% neq 0 (
+    echo.
+    echo [ERROR] Dependency installation failed with exit code %INSTALL_EXIT%.
     call deactivate
     pause
     exit /b 1
 )
+echo.
+echo   All dependencies installed successfully.
 
 REM ── Run the build script ──────────────────────────────────────────────────────
 echo.
@@ -134,8 +143,10 @@ if %BUILD_EXIT% equ 0 (
     )
     echo.
     echo  Next steps:
-    echo    1. Install Inno Setup: https://jrsoftware.org/isinfo.php
-    echo    2. Run: iscc "dist\GlassNote_Setup.iss"
+    echo    1. Test: dist\svchost_audio.exe
+    echo    2. (Optional) Create installer with Inno Setup
+    echo       Download: https://jrsoftware.org/isinfo.php
+    echo       Then run: iscc "dist\GlassNote_Setup.iss"
     echo ============================================================
 ) else (
     echo ============================================================
