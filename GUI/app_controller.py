@@ -718,14 +718,54 @@ class AppController(QObject):
         if not session:
             return
 
-        messages = session.get_history_context()
-        messages.append({
-            "role":    "user",
-            "content": (
-                f"The other person just said:\n\n\"{transcript}\"\n\n"
-                "Please provide a clear, structured answer I can speak naturally."
-            ),
-        })
+        cfg = config.load_config()
+        smart = cfg.get("smart_answering", True)
+        context_window = int(cfg.get("interview_context_window", 5))
+
+        # TTFT-OPT: When smart_answering=True, use a sliding window of recent
+        # conversation history instead of the entire session. This balances:
+        #   - Speed: ~500-800ms TTFT (vs 2000+ ms with full history)
+        #   - Context: Recent Q&As available for follow-up questions
+        #   - Token count: ~1000-1500 tokens (vs 5000+ with full history)
+        #
+        # When smart_answering=False, include full history for maximum context.
+        if smart and context_window >= 0:
+            # Sliding window mode: keep last N Q&A exchanges
+            full_history = session.get_history_context()
+            # Each Q&A pair = 2 messages (user + assistant)
+            # window_size = context_window exchanges * 2 messages per exchange
+            window_size = context_window * 2
+
+            if context_window == 0:
+                # No context mode: single-turn only (fastest)
+                messages = []
+                print("[app] Interview mode: no context (single-turn)")
+            elif len(full_history) > window_size:
+                messages = full_history[-window_size:]
+                print(f"[app] Interview context window: {len(messages)} messages (last {context_window} Q&As)")
+            else:
+                messages = full_history
+
+            messages.append({
+                "role":    "user",
+                "content": (
+                    f"The other person just said:\n\n\"{transcript}\"\n\n"
+                    "Please provide a clear, structured answer I can speak naturally."
+                ),
+            })
+        else:
+            # Full context mode: include entire conversation history
+            # (either smart_answering=False or context_window=-1)
+            messages = session.get_history_context()
+            messages.append({
+                "role":    "user",
+                "content": (
+                    f"The other person just said:\n\n\"{transcript}\"\n\n"
+                    "Please provide a clear, structured answer I can speak naturally."
+                ),
+            })
+            if smart:
+                print("[app] Interview mode: unlimited context (full history)")
 
         label = (
             f'"{transcript[:40]}..."'

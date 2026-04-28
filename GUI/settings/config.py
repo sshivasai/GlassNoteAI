@@ -148,6 +148,19 @@ DEFAULTS = {
     #   OpenAI Realtime    → transcription.completed  (server VAD committed)
     "smart_answering":    False,
 
+    # ── Interview Context Window ───────────────────────────────
+    # Number of recent Q&A exchanges to include as context in interview mode.
+    # Each exchange = 1 user question + 1 assistant answer = 2 messages.
+    #
+    # Balance speed vs context:
+    #   5 exchanges → ~1000-1500 tokens → ~500-800ms TTFT (recommended)
+    #   10 exchanges → ~2000-3000 tokens → ~1000-1500ms TTFT
+    #   0 (no context) → ~150 tokens → ~300ms TTFT (very fast but loses context)
+    #   -1 (unlimited) → full history → 2000+ ms TTFT (slow, degrades over time)
+    #
+    # Only applies when smart_answering=True. When False, full history is always sent.
+    "interview_context_window": 5,
+
     # ── Session defaults ───────────────────────────────────────
     "default_language":   "English",
     "simple_language":    False,

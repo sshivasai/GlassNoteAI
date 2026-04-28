@@ -41,6 +41,7 @@ import httpx
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from settings import config
+from llm.model_registry import needs_vision_fallback, get_vision_fallback
 
 # TTFT-OPT: module-level import, avoid repeated disk reads
 # pricing_config was previously imported inside _get_proxy_config() on every
@@ -761,6 +762,21 @@ class LLMClient:
         provider = cfg.get("selected_provider", "anthropic")
         model    = self._resolve_model(cfg, provider, messages, mode)
 
+        # ── HYBRID MODEL APPROACH ──────────────────────────────────────────────
+        # When a text-only model is selected but images are present (analyze/solve),
+        # automatically fallback to a fast vision-capable model for that request.
+        # Interview mode continues using the selected text-only model.
+        original_provider = provider
+        original_model = model
+        hybrid_fallback = needs_vision_fallback(provider, model, bool(images), mode)
+
+        if hybrid_fallback:
+            provider, model = get_vision_fallback(provider, model)
+            print(
+                f"[llm] Hybrid fallback — {original_provider}/{original_model} → "
+                f"{provider}/{model} for {mode} (vision needed)"
+            )
+
         if use_cache:
             cached = _response_cache.get(
                 provider, model, system_prompt, messages, images, mode
@@ -774,7 +790,7 @@ class LLMClient:
                 on_done(cached)
                 return
 
-        # Cerebras models are text-only — skip image processing entirely
+        # Process images for vision-capable providers
         optimized_images = None
         if images and provider != "cerebras":
             t0 = time.time()
@@ -1001,10 +1017,17 @@ class LLMClient:
         Args:
             proxy_url: Base URL of the proxy (e.g. https://api.glassnote.ai).
             proxy_token: User's JWT token.
-            provider: 'anthropic' or 'openai'.
+            provider: 'anthropic', 'openai', or 'cerebras'.
         """
         http_client = _pool.get_proxy(proxy_url)
-        max_tokens  = self._get_max_tokens(cfg, mode)
+
+        # TTFT-OPT: Reduce max_tokens for interview mode to 400 (was 600)
+        # Interview answers should be brief and spoken aloud — 400 tokens
+        # is ~300 words, plenty for a concise answer.
+        # Lower max_tokens = faster response time + lower cost.
+        max_tokens = self._get_max_tokens(cfg, mode)
+        if mode == "interview":
+            max_tokens = min(max_tokens, 400)  # Cap at 400 for interview mode
 
         # Build the request body — same format the provider expects
         if provider == "anthropic":
@@ -1063,33 +1086,68 @@ class LLMClient:
         t0         = time.time()
         ttft_ms:   Optional[float] = None
 
+        # TTFT-OPT: Use iter_bytes() with manual line parsing instead of iter_lines()
+        # iter_lines() buffers until \n, adding 10-50ms latency per chunk.
+        # iter_bytes() yields immediately as data arrives from the socket.
         with http_client.stream(
             "POST", endpoint, headers=headers, json=body,
         ) as r:
             r.raise_for_status()
-            for line in r.iter_lines():
+            buffer = ""
+            for chunk in r.iter_bytes():
                 if cancel_event and cancel_event.is_set():
                     print("[llm] proxy stream cancelled")
                     break
-                if not line or line.startswith("event:"):
-                    continue
-                if not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if not data or data == "[DONE]":
-                    continue
+
+                # Decode chunk and append to buffer
                 try:
-                    evt = json.loads(data)
-                except json.JSONDecodeError:
+                    buffer += chunk.decode("utf-8")
+                except UnicodeDecodeError:
                     continue
 
-                # Anthropic format
-                if provider == "anthropic":
-                    etype = evt.get("type")
-                    if etype == "content_block_delta":
-                        delta = evt.get("delta", {})
-                        if delta.get("type") == "text_delta":
-                            txt = delta.get("text", "")
+                # Process complete lines from buffer
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
+
+                    if not line or line.startswith("event:"):
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if not data or data == "[DONE]":
+                        continue
+                    try:
+                        evt = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # Anthropic format
+                    if provider == "anthropic":
+                        etype = evt.get("type")
+                        if etype == "content_block_delta":
+                            delta = evt.get("delta", {})
+                            if delta.get("type") == "text_delta":
+                                txt = delta.get("text", "")
+                                if txt:
+                                    if ttft_ms is None:
+                                        ttft_ms = (time.time() - t0) * 1_000
+                                        print(
+                                            f"[llm] TTFT {ttft_ms:.0f} ms  "
+                                            f"model={model}  mode={mode}  "
+                                            f"via=proxy"
+                                        )
+                                    full_text.append(txt)
+                                    on_token(txt)
+                        elif etype == "error":
+                            err = evt.get("error", {})
+                            raise RuntimeError(
+                                err.get("message", "Proxy stream error")
+                            )
+                    # OpenAI / Cerebras format (both use same SSE structure)
+                    else:
+                        try:
+                            txt = evt["choices"][0]["delta"].get("content", "")
                             if txt:
                                 if ttft_ms is None:
                                     ttft_ms = (time.time() - t0) * 1_000
@@ -1100,27 +1158,8 @@ class LLMClient:
                                     )
                                 full_text.append(txt)
                                 on_token(txt)
-                    elif etype == "error":
-                        err = evt.get("error", {})
-                        raise RuntimeError(
-                            err.get("message", "Proxy stream error")
-                        )
-                # OpenAI format
-                else:
-                    try:
-                        txt = evt["choices"][0]["delta"].get("content", "")
-                        if txt:
-                            if ttft_ms is None:
-                                ttft_ms = (time.time() - t0) * 1_000
-                                print(
-                                    f"[llm] TTFT {ttft_ms:.0f} ms  "
-                                    f"model={model}  mode={mode}  "
-                                    f"via=proxy"
-                                )
-                            full_text.append(txt)
-                            on_token(txt)
-                    except (KeyError, IndexError, AttributeError):
-                        pass
+                        except (KeyError, IndexError, AttributeError):
+                            pass
 
         total_ms = (time.time() - t0) * 1_000
         print(
@@ -1360,8 +1399,12 @@ class LLMClient:
                 "No Cerebras API key configured. Open Settings to add one."
             )
 
-        http_client  = _pool.get_cerebras(api_key)
-        max_tokens   = self._get_max_tokens(cfg, mode)
+        http_client = _pool.get_cerebras(api_key)
+
+        # TTFT-OPT: Reduce max_tokens for interview mode
+        max_tokens = self._get_max_tokens(cfg, mode)
+        if mode == "interview":
+            max_tokens = min(max_tokens, 400)  # Cap at 400 for interview mode
 
         # Build OpenAI-compatible messages (text only — no images)
         cb_messages = [{"role": "system", "content": system_prompt}]
@@ -1384,49 +1427,63 @@ class LLMClient:
         t0         = time.time()
         ttft_ms:   Optional[float] = None
 
+        # TTFT-OPT: Use iter_bytes() instead of iter_lines() for lower latency
         with http_client.stream(
             "POST", self.CEREBRAS_URL, headers=headers, json=body,
         ) as r:
             r.raise_for_status()
-            for line in r.iter_lines():
+            buffer = ""
+            for chunk in r.iter_bytes():
                 if cancel_event and cancel_event.is_set():
                     print("[llm] cerebras stream cancelled")
                     break
-                if not line or not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
+
+                # Decode chunk and append to buffer
                 try:
-                    evt = json.loads(data)
-                except json.JSONDecodeError:
+                    buffer += chunk.decode("utf-8")
+                except UnicodeDecodeError:
                     continue
 
-                # Usage chunk (Cerebras includes usage in final chunk)
-                if evt.get("usage"):
-                    u = evt["usage"]
-                    print(
-                        f"[llm] cerebras usage — "
-                        f"prompt={u.get('prompt_tokens', 0)}  "
-                        f"completion={u.get('completion_tokens', 0)}  "
-                        f"total={u.get('total_tokens', 0)}"
-                    )
+                # Process complete lines from buffer
+                while "\n" in buffer:
+                    line, buffer = buffer.split("\n", 1)
+                    line = line.strip()
 
-                try:
-                    txt = evt["choices"][0]["delta"].get("content", "")
-                    if txt:
-                        if ttft_ms is None:
-                            ttft_ms = (time.time() - t0) * 1_000
-                            print(
-                                f"[llm] TTFT {ttft_ms:.0f} ms  "
-                                f"model={model}  mode={mode}  "
-                                f"max_tokens={max_tokens}  "
-                                f"provider=cerebras"
-                            )
-                        full_text.append(txt)
-                        on_token(txt)
-                except (KeyError, IndexError, AttributeError):
-                    continue
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        evt = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # Usage chunk (Cerebras includes usage in final chunk)
+                    if evt.get("usage"):
+                        u = evt["usage"]
+                        print(
+                            f"[llm] cerebras usage — "
+                            f"prompt={u.get('prompt_tokens', 0)}  "
+                            f"completion={u.get('completion_tokens', 0)}  "
+                            f"total={u.get('total_tokens', 0)}"
+                        )
+
+                    try:
+                        txt = evt["choices"][0]["delta"].get("content", "")
+                        if txt:
+                            if ttft_ms is None:
+                                ttft_ms = (time.time() - t0) * 1_000
+                                print(
+                                    f"[llm] TTFT {ttft_ms:.0f} ms  "
+                                    f"model={model}  mode={mode}  "
+                                    f"max_tokens={max_tokens}  "
+                                    f"provider=cerebras"
+                                )
+                            full_text.append(txt)
+                            on_token(txt)
+                    except (KeyError, IndexError, AttributeError):
+                        continue
 
         total_ms = (time.time() - t0) * 1_000
         print(
