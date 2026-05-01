@@ -101,6 +101,7 @@ class UserResponse(BaseModel):
     first_name:         str = ""
     last_name:          str = ""
     plan:               str
+    byok_enabled:       bool = False  # BYOK feature flag
     is_verified:        bool
     device_bound:       bool
     auth_provider:      str = "email"
@@ -611,7 +612,8 @@ async def get_me(user: dict = Depends(get_current_user), db: AsyncSession = Depe
     return UserResponse(
         id=user["sub"], email=db_user.email,
         first_name=db_user.first_name or "", last_name=db_user.last_name or "",
-        plan=plan, is_verified=db_user.is_verified,
+        plan=plan, byok_enabled=db_user.byok_enabled,
+        is_verified=db_user.is_verified,
         device_bound=bool(db_user.bound_device_id),
         auth_provider=db_user.auth_provider or "email",
         sessions_used=used,
@@ -641,16 +643,62 @@ async def update_profile(
     return {"status": "ok", "first_name": db_user.first_name, "last_name": db_user.last_name}
 
 
-# ── Switch Plan (Free ↔ BYOK) ─────────────────────────────────────────────────
+# ── Toggle BYOK Feature ──────────────────────────────────────────────────────
+
+class ToggleBYOKRequest(BaseModel):
+    enabled: bool  # True to enable BYOK, False to disable
+
+
+@router.post("/toggle-byok")
+async def toggle_byok(
+    req: ToggleBYOKRequest,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Enable or disable BYOK (Bring Your Own Keys) feature on the account.
+
+    BYOK is now a feature flag, not a plan. Any user on any plan can enable it.
+    When enabled, the user can provide their own API keys and use unlimited sessions.
+    When disabled, the user is restricted to their plan's limits and uses platform keys.
+
+    Rules:
+    - BYOK can be enabled on any plan (free, base, unlimited)
+    - Enabling BYOK does NOT change the user's plan
+    - Session limits are based on plan + BYOK status
+    - If BYOK enabled: unlimited sessions (user pays for API usage)
+    - If BYOK disabled: plan limits apply (platform pays for API usage)
+    """
+    user_id = user["sub"]
+    result = await db.execute(select(User).where(User.id == user_id))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(404, "User not found")
+
+    # Update BYOK status
+    db_user.byok_enabled = req.enabled
+    await db.commit()
+
+    status_text = "enabled" if req.enabled else "disabled"
+    return {
+        "message": f"BYOK has been {status_text} on your account.",
+        "byok_enabled": req.enabled,
+        "plan": db_user.plan,
+    }
+
+
+# ── Switch Plan (Free ↔ Base/Unlimited via billing) ──────────────────────────
 
 class SwitchPlanRequest(BaseModel):
-    plan: str  # "free" or "byok"
+    plan: str  # Plan ID to switch to
 
     @field_validator("plan")
     @classmethod
     def validate_plan(cls, v: str) -> str:
-        if v not in ("free", "byok"):
-            raise ValueError("Can only switch between 'free' and 'byok' plans")
+        # Only allow switching between free and paid plans via this endpoint
+        # BYOK is no longer a plan, it's a feature toggle
+        if v not in ("free", "base", "unlimited"):
+            raise ValueError("Invalid plan. Use /toggle-byok to enable BYOK feature.")
         return v
 
 
@@ -661,28 +709,18 @@ async def switch_plan(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Switch plans with proper rules and quota handling.
+    Switch between subscription plans (free, base, unlimited).
+
+    BYOK is NO LONGER a plan - it's a feature flag. Use /toggle-byok instead.
 
     RULES:
     ------
-    1. Free ↔ BYOK: Allowed (both free, share same "lifetime" quota)
-    2. Any plan → BYOK: Allowed (BYOK is free, no payment needed)
-    3. Free → Base/Unlimited: Blocked (requires payment via billing page)
-    4. Base/Unlimited → Free/BYOK: Blocked (cancel subscription via billing first)
+    1. Free → Base/Unlimited: Blocked (requires payment via billing page)
+    2. Base/Unlimited → Free: Blocked (cancel subscription via billing first)
+    3. Base ↔ Unlimited: Blocked (requires billing page to change subscription)
 
-    LIFETIME QUOTA:
-    ---------------
-    Free and BYOK both have `sessions_lifetime=True`, so they share the SAME
-    quota row (period="lifetime"). This means:
-    - User starts with 5 lifetime sessions on Free
-    - Switches to BYOK → still has same 5 sessions used (shared quota)
-    - Switches back to Free → same quota persists
-    - This is CORRECT behavior: 5 lifetime sessions PER ACCOUNT, not per plan
-
-    PAID PLAN QUOTA:
-    ----------------
-    Base/Unlimited have monthly quotas (period="2026-04"), separate from lifetime.
-    When switching from paid → BYOK, the old monthly quota remains but inactive.
+    This endpoint is primarily informational - most plan changes happen via
+    Stripe billing portal or checkout.
     """
     user_id = user["sub"]
     result  = await db.execute(select(User).where(User.id == user_id))
@@ -697,24 +735,6 @@ async def switch_plan(
     if current_plan == target_plan:
         raise HTTPException(400, f"You are already on the {target_plan} plan")
 
-    # Rule: Any plan → BYOK is allowed (BYOK is free)
-    if target_plan == "byok":
-        db_user.plan = target_plan
-        await db.commit()
-        return {
-            "message": f"Successfully switched to BYOK plan",
-            "new_plan": target_plan
-        }
-
-    # Rule: Free ↔ BYOK is allowed (both free, share lifetime quota)
-    if current_plan in ("free", "byok") and target_plan in ("free", "byok"):
-        db_user.plan = target_plan
-        await db.commit()
-        return {
-            "message": f"Successfully switched to {target_plan} plan",
-            "new_plan": target_plan
-        }
-
     # Rule: Free → Base/Unlimited blocked (requires payment)
     if current_plan == "free" and target_plan in ("base", "unlimited"):
         raise HTTPException(
@@ -723,13 +743,11 @@ async def switch_plan(
             "Please visit the billing page to subscribe."
         )
 
-    # Rule: BYOK → Free is allowed (covered by free ↔ byok above)
-
-    # Rule: Base/Unlimited → Free/BYOK blocked (cancel subscription first)
-    if current_plan in ("base", "unlimited") and target_plan in ("free", "byok"):
+    # Rule: Base/Unlimited → Free blocked (cancel subscription first)
+    if current_plan in ("base", "unlimited") and target_plan == "free":
         raise HTTPException(
             400,
-            f"To downgrade from {current_plan} to {target_plan}, please cancel "
+            f"To downgrade from {current_plan} to Free, please cancel "
             "your subscription via the billing page first."
         )
 

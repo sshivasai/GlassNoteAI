@@ -78,12 +78,19 @@ async def create_checkout(
         user_id = user["sub"]
         email   = user.get("email", "")
 
-        # FIX: Prevent free/BYOK plans from accessing checkout
-        # Both are now free and don't require Stripe
-        if req.plan in ("free", "byok"):
+        # FIX: Prevent free plan from accessing checkout (it's free)
+        # BYOK is now a feature flag, not a plan - use /api/auth/toggle-byok instead
+        if req.plan == "free":
             raise HTTPException(
                 status_code=400,
-                detail=f"Plan '{req.plan}' is free and does not require payment"
+                detail="Free plan does not require payment"
+            )
+
+        # BYOK is no longer a plan - it's a feature toggle
+        if req.plan == "byok":
+            raise HTTPException(
+                status_code=400,
+                detail="BYOK is a feature, not a plan. Use /api/auth/toggle-byok to enable it."
             )
 
         # Get user from DB for existing Stripe customer ID
@@ -229,9 +236,10 @@ async def stripe_webhook(request: Request):
                 customer = data.get("customer", "")
 
                 if user_id:
-                    # Compute expiry: BYOK = lifetime (no expiry), others = 30 days
+                    # Compute expiry: free = no expiry, paid plans = 30 days
+                    # BYOK is no longer a plan - it's a feature flag
                     expires_at = None
-                    if plan not in ("byok", "free"):
+                    if plan not in ("free",):
                         expires_at = datetime.now(timezone.utc) + timedelta(days=30)
 
                     await db.execute(

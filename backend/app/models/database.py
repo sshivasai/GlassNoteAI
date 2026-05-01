@@ -37,6 +37,7 @@ class User(Base):
         hashed_password:     bcrypt-hashed password.
         plan:                Current subscription plan ID (from pricing_config).
         plan_expires_at:     When the current paid plan expires (null = free/lifetime/no expiry).
+        byok_enabled:        Whether BYOK (Bring Your Own Keys) feature is enabled.
         stripe_customer_id:  Stripe customer ID for billing.
         is_active:           Whether the account is active (False on payment failure).
         is_verified:         Whether the email has been OTP-verified.
@@ -56,6 +57,7 @@ class User(Base):
     google_id               = Column(String(255), nullable=True, unique=True, index=True)
     plan                    = Column(String(30), nullable=False, default="free")
     plan_expires_at         = Column(DateTime(timezone=True), nullable=True)   # None = free / no expiry
+    byok_enabled            = Column(Boolean, default=False)  # BYOK feature flag (not a plan)
     stripe_customer_id      = Column(String(255), nullable=True)
     is_active               = Column(Boolean, default=True)
     is_verified             = Column(Boolean, default=False)

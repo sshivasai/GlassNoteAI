@@ -9,7 +9,11 @@ Plans:
     free       — $0, 5 lifetime sessions, 30 min each, basic models only
     base       — $29/mo, 15 sessions/mo, 1 hour each, mid-tier models
     unlimited  — $49/mo, unlimited sessions, unlimited duration, all models
-    byok       — $0 (FREE), unlimited sessions, all models, user's own API keys
+
+BYOK (Bring Your Own Keys):
+    BYOK is now a FEATURE FLAG, not a plan. Any user can enable it on their account
+    via the toggle-byok endpoint. When enabled, users provide their own API keys
+    and get unlimited sessions regardless of their plan.
 """
 
 from datetime import datetime, timezone
@@ -95,7 +99,7 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   False,
+        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#888888",
         "sort_order":     0,
     },
@@ -120,7 +124,7 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   False,
+        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#4f8ef7",
         "sort_order":     1,
     },
@@ -145,35 +149,12 @@ PLANS = {
             "priority_support":   True,
         },
         "stt_providers":  _ALL_STT,
-        "byok_allowed":   False,
+        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#f59e0b",
         "sort_order":     2,
     },
-    "byok": {
-        "display_name":             "BYOK",
-        "tagline":                  "Use your own API keys forever",
-        "price_monthly":            0,          # FIX: BYOK is now FREE (was $99)
-        "price_display":            "Free",     # FIX: Show "Free" not "$99 forever"
-        "price_type":               "free",     # FIX: Changed from "one_time" to "free"
-        "stripe_price_id":          None,       # FIX: No Stripe (was "price_byok_lifetime")
-        "sessions_per_month":       9999,
-        "sessions_lifetime":        True,       # FIX: Changed to True (lifetime like free plan)
-        "session_duration_minutes": 0,
-        "allowed_model_ids":        _ALL_MODEL_IDS,
-        "features": {
-            "smart_answering":    True,
-            "auto_capture":       True,
-            "prompt_caching":     True,
-            "response_cache":     True,
-            "auto_model_routing": True,
-            "http2_pooling":      True,
-            "priority_support":   True,
-        },
-        "stt_providers":  _ALL_STT,
-        "byok_allowed":   True,
-        "badge_color":    "#10b981",
-        "sort_order":     3,
-    },
+    # BYOK removed from plans - it's now a feature flag (User.byok_enabled)
+    # All plans support BYOK when the feature is enabled on the account
 }
 
 
@@ -209,7 +190,8 @@ def get_one_time_plans() -> set:
     """
     Return plan IDs that require one-time payment.
 
-    FIX: BYOK is now free (price_type="free"), so this returns empty set.
+    BYOK removed: It's now a feature flag, not a plan.
+    This returns empty set unless new one-time plans are added.
     Kept for backward compatibility with billing code.
     """
     return {pid for pid, p in PLANS.items() if p["price_type"] == "one_time"}

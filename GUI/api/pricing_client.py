@@ -35,9 +35,12 @@ _loaded    = False
 _last_fetch: float = 0.0
 
 
-# ── Bundled fallback (mirrors GUI/pricing_config.py) ─────────────────────────
+# ── Bundled fallback (mirrors backend/app/pricing_config.py) ────────────────
 # Used when the backend is unreachable AND no cache exists.
-# Keep in sync with GUI/pricing_config.py manually as a last resort.
+# Keep in sync with backend/app/pricing_config.py manually as a last resort.
+#
+# NOTE: BYOK is now a FEATURE FLAG, not a plan. It's not included here.
+# Users enable BYOK via the toggle-byok API endpoint.
 
 _FALLBACK_ALL_MODELS = [
     {"display_name": "Claude Opus 4.5  [Anthropic — Best]",     "provider": "anthropic", "model_id": "claude-opus-4-5"},
@@ -73,7 +76,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": False, "auto_capture": False, "prompt_caching": False,
                      "response_cache": True, "auto_model_routing": False, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": False,
+        "stt_providers": ["deepgram"], "byok_allowed": True,  # All plans support BYOK
         "badge_color": "#888888", "sort_order": 0,
     },
     "base": {
@@ -86,7 +89,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": False,
+        "stt_providers": ["deepgram"], "byok_allowed": True,  # All plans support BYOK
         "badge_color": "#4f8ef7", "sort_order": 1,
     },
     "unlimited": {
@@ -99,22 +102,11 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": True},
-        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": False,
+        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": True,  # All plans support BYOK
         "badge_color": "#f59e0b", "sort_order": 2,
     },
-    "byok": {
-        "display_name": "BYOK", "tagline": "Use your own API keys forever",
-        "price_monthly": 0, "price_display": "Free", "price_type": "free",  # FIX: BYOK is now FREE
-        "stripe_price_id": None,  # FIX: No Stripe (was "price_byok_lifetime")
-        "sessions_per_month": 9999, "sessions_lifetime": True,  # FIX: Lifetime (was False)
-        "session_duration_minutes": 0,
-        "allowed_model_ids": sorted(_ALL_IDS),
-        "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
-                     "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
-                     "priority_support": True},
-        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": True,
-        "badge_color": "#10b981", "sort_order": 3,
-    },
+    # BYOK removed from plans - it's now a feature flag (User.byok_enabled)
+    # All plans support BYOK when the feature is enabled on the account
 }
 
 
