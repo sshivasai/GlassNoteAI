@@ -6,10 +6,12 @@ import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import { LogOut, User } from "lucide-react";
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
-  const { isAuthenticated, user, openAuth } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { isAuthenticated, user, openAuth, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -57,12 +59,42 @@ export function Header() {
         {/* CTA Buttons */}
         <div className="flex items-center gap-3">
           {isAuthenticated ? (
-            <Button
-              onClick={() => router.push("/dashboard")}
-              className="bg-white text-black hover:bg-gray-100 font-medium px-5"
-            >
-              Dashboard
-            </Button>
+            <div className="relative">
+              <Button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="bg-white text-black hover:bg-gray-100 font-medium px-5 flex items-center gap-2"
+              >
+                <User className="w-4 h-4" />
+                <span className="hidden sm:inline">{user?.first_name || "Account"}</span>
+              </Button>
+
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg shadow-lg overflow-hidden z-50">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      router.push("/dashboard");
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-white/5 transition flex items-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    Dashboard
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      logout();
+                      router.push("/");
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/10 transition flex items-center gap-2 border-t border-[var(--border)]"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <>
               <Button

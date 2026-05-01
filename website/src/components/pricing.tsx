@@ -74,15 +74,19 @@ function getPlanFeatureLines(plan: Plan): string[] {
 }
 
 function getPlanCTA(plan: Plan): { label: string; href: string } {
+  // FIX: Handle free plans (free + byok) vs paid plans differently
+  if (plan.price_type === "free") {
+    // Free plans: "Get Started Free" - no payment required
+    const label = plan.id === "byok" ? "Start Free with BYOK" : "Start Free";
+    return { label, href: `/signup?plan=${plan.id}` };
+  }
+
+  // Paid plans: "Subscribe" or custom label
   switch (plan.id) {
-    case "free":
-      return { label: "Start Free", href: "/signup" };
     case "base":
-      return { label: "Get Base", href: "/signup?plan=base" };
+      return { label: "Subscribe to Base", href: "/signup?plan=base" };
     case "unlimited":
       return { label: "Go Unlimited", href: "/signup?plan=unlimited" };
-    case "byok":
-      return { label: "Get Lifetime Access", href: "/signup?plan=byok" };
     default:
       return { label: "Get Started", href: `/signup?plan=${plan.id}` };
   }
@@ -145,11 +149,11 @@ const FALLBACK_PLANS: Plan[] = [
     id: "byok",
     display_name: "BYOK",
     tagline: "Use your own API keys forever",
-    price_monthly: 9900,
-    price_display: "$99 forever",
-    price_type: "one_time",
+    price_monthly: 0,              // FIX: BYOK is now FREE (was 9900)
+    price_display: "Free",         // FIX: Show "Free" (was "$99 forever")
+    price_type: "free",            // FIX: Changed from "one_time" to "free"
     sessions_per_month: 9999,
-    sessions_lifetime: false,
+    sessions_lifetime: true,       // FIX: Changed to true (lifetime like free)
     session_duration_min: 0,
     allowed_models: [],
     features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: true },
@@ -183,7 +187,7 @@ export async function Pricing() {
             Simple, transparent pricing
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            Start free, no credit card needed. Upgrade when you&apos;re ready — or bring your own API keys for a one-time lifetime purchase.
+            Start free, no credit card needed. Upgrade when you&apos;re ready — or bring your own API keys for unlimited access (also free).
           </p>
         </div>
 

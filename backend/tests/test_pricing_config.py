@@ -97,10 +97,12 @@ class TestPricing:
         assert PLANS["unlimited"]["price_monthly"] == 49_00, "Unlimited should be $49/mo"
 
     def test_byok_plan_price(self):
-        assert PLANS["byok"]["price_monthly"] == 99_00, "BYOK should be $99 one-time"
+        # FIX: BYOK is now FREE (was $99 one-time)
+        assert PLANS["byok"]["price_monthly"] == 0, "BYOK should be FREE"
 
-    def test_byok_is_one_time(self):
-        assert PLANS["byok"]["price_type"] == "one_time"
+    def test_byok_is_free(self):
+        # FIX: BYOK changed from "one_time" to "free"
+        assert PLANS["byok"]["price_type"] == "free"
 
     def test_base_unlimited_are_subscriptions(self):
         assert PLANS["base"]["price_type"]      == "subscription"
@@ -245,11 +247,14 @@ class TestHelpers:
     def test_get_stripe_price_map_excludes_free(self):
         price_map = get_stripe_price_map()
         assert "free" not in price_map
-        assert len(price_map) == 3   # base, unlimited, byok
+        # FIX: BYOK is now free (no Stripe), so only base + unlimited = 2
+        assert len(price_map) == 2   # base, unlimited (byok is free now)
 
-    def test_get_one_time_plans_contains_byok_only(self):
+    def test_get_one_time_plans_is_now_empty(self):
+        # FIX: BYOK is now free (not one-time), so this should be empty
         one_time = get_one_time_plans()
-        assert "byok" in one_time
+        assert len(one_time) == 0, "No plans are one-time anymore (BYOK is free)"
+        assert "byok" not in one_time
         assert "free" not in one_time
         assert "base" not in one_time
 

@@ -66,7 +66,8 @@ export default function BillingPage() {
 
   if (!user) return null;
 
-  const paidPlans = plans.filter((p) => p.id !== "free").sort((a, b) => a.sort_order - b.sort_order);
+  // FIX: Filter out ALL free plans (free + byok), show only paid plans
+  const paidPlans = plans.filter((p) => p.price_type !== "free").sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div className="space-y-8">

@@ -640,6 +640,110 @@ async def update_profile(
 
     return {"status": "ok", "first_name": db_user.first_name, "last_name": db_user.last_name}
 
+
+# ── Switch Plan (Free ↔ BYOK) ─────────────────────────────────────────────────
+
+class SwitchPlanRequest(BaseModel):
+    plan: str  # "free" or "byok"
+
+    @field_validator("plan")
+    @classmethod
+    def validate_plan(cls, v: str) -> str:
+        if v not in ("free", "byok"):
+            raise ValueError("Can only switch between 'free' and 'byok' plans")
+        return v
+
+
+@router.post("/switch-plan")
+async def switch_plan(
+    req: SwitchPlanRequest,
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Switch plans with proper rules and quota handling.
+
+    RULES:
+    ------
+    1. Free ↔ BYOK: Allowed (both free, share same "lifetime" quota)
+    2. Any plan → BYOK: Allowed (BYOK is free, no payment needed)
+    3. Free → Base/Unlimited: Blocked (requires payment via billing page)
+    4. Base/Unlimited → Free/BYOK: Blocked (cancel subscription via billing first)
+
+    LIFETIME QUOTA:
+    ---------------
+    Free and BYOK both have `sessions_lifetime=True`, so they share the SAME
+    quota row (period="lifetime"). This means:
+    - User starts with 5 lifetime sessions on Free
+    - Switches to BYOK → still has same 5 sessions used (shared quota)
+    - Switches back to Free → same quota persists
+    - This is CORRECT behavior: 5 lifetime sessions PER ACCOUNT, not per plan
+
+    PAID PLAN QUOTA:
+    ----------------
+    Base/Unlimited have monthly quotas (period="2026-04"), separate from lifetime.
+    When switching from paid → BYOK, the old monthly quota remains but inactive.
+    """
+    user_id = user["sub"]
+    result  = await db.execute(select(User).where(User.id == user_id))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(404, "User not found")
+
+    current_plan = db_user.plan
+    target_plan = req.plan
+
+    # Don't allow switching to the same plan
+    if current_plan == target_plan:
+        raise HTTPException(400, f"You are already on the {target_plan} plan")
+
+    # Rule: Any plan → BYOK is allowed (BYOK is free)
+    if target_plan == "byok":
+        db_user.plan = target_plan
+        await db.commit()
+        return {
+            "message": f"Successfully switched to BYOK plan",
+            "new_plan": target_plan
+        }
+
+    # Rule: Free ↔ BYOK is allowed (both free, share lifetime quota)
+    if current_plan in ("free", "byok") and target_plan in ("free", "byok"):
+        db_user.plan = target_plan
+        await db.commit()
+        return {
+            "message": f"Successfully switched to {target_plan} plan",
+            "new_plan": target_plan
+        }
+
+    # Rule: Free → Base/Unlimited blocked (requires payment)
+    if current_plan == "free" and target_plan in ("base", "unlimited"):
+        raise HTTPException(
+            400,
+            f"Upgrading from Free to {target_plan} requires payment. "
+            "Please visit the billing page to subscribe."
+        )
+
+    # Rule: BYOK → Free is allowed (covered by free ↔ byok above)
+
+    # Rule: Base/Unlimited → Free/BYOK blocked (cancel subscription first)
+    if current_plan in ("base", "unlimited") and target_plan in ("free", "byok"):
+        raise HTTPException(
+            400,
+            f"To downgrade from {current_plan} to {target_plan}, please cancel "
+            "your subscription via the billing page first."
+        )
+
+    # Rule: Base ↔ Unlimited (requires billing page)
+    if current_plan in ("base", "unlimited") and target_plan in ("base", "unlimited"):
+        raise HTTPException(
+            400,
+            "Please use the billing page to change between paid plans."
+        )
+
+    # Fallback (should never reach here)
+    raise HTTPException(400, "Invalid plan switch")
+
+
 # ── Delete Account ────────────────────────────────────────────────────────────
 
 @router.delete("/account")

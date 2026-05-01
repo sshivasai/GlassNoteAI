@@ -104,9 +104,9 @@ _FALLBACK_PLANS = {
     },
     "byok": {
         "display_name": "BYOK", "tagline": "Use your own API keys forever",
-        "price_monthly": 9900, "price_display": "$99 forever", "price_type": "one_time",
-        "stripe_price_id": "price_byok_lifetime",
-        "sessions_per_month": 9999, "sessions_lifetime": False,
+        "price_monthly": 0, "price_display": "Free", "price_type": "free",  # FIX: BYOK is now FREE
+        "stripe_price_id": None,  # FIX: No Stripe (was "price_byok_lifetime")
+        "sessions_per_month": 9999, "sessions_lifetime": True,  # FIX: Lifetime (was False)
         "session_duration_minutes": 0,
         "allowed_model_ids": sorted(_ALL_IDS),
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,

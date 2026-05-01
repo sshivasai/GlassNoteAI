@@ -9,7 +9,7 @@ Plans:
     free       — $0, 5 lifetime sessions, 30 min each, basic models only
     base       — $29/mo, 15 sessions/mo, 1 hour each, mid-tier models
     unlimited  — $49/mo, unlimited sessions, unlimited duration, all models
-    byok       — $99 one-time, unlimited sessions, all models, user's own API keys
+    byok       — $0 (FREE), unlimited sessions, all models, user's own API keys
 """
 
 from datetime import datetime, timezone
@@ -152,12 +152,12 @@ PLANS = {
     "byok": {
         "display_name":             "BYOK",
         "tagline":                  "Use your own API keys forever",
-        "price_monthly":            99_00,
-        "price_display":            "$99 forever",
-        "price_type":               "one_time",
-        "stripe_price_id":          "price_byok_lifetime",
+        "price_monthly":            0,          # FIX: BYOK is now FREE (was $99)
+        "price_display":            "Free",     # FIX: Show "Free" not "$99 forever"
+        "price_type":               "free",     # FIX: Changed from "one_time" to "free"
+        "stripe_price_id":          None,       # FIX: No Stripe (was "price_byok_lifetime")
         "sessions_per_month":       9999,
-        "sessions_lifetime":        False,
+        "sessions_lifetime":        True,       # FIX: Changed to True (lifetime like free plan)
         "session_duration_minutes": 0,
         "allowed_model_ids":        _ALL_MODEL_IDS,
         "features": {
@@ -206,6 +206,12 @@ def get_stripe_price_map() -> dict:
     return {pid: p["stripe_price_id"] for pid, p in PLANS.items() if p["stripe_price_id"]}
 
 def get_one_time_plans() -> set:
+    """
+    Return plan IDs that require one-time payment.
+
+    FIX: BYOK is now free (price_type="free"), so this returns empty set.
+    Kept for backward compatibility with billing code.
+    """
     return {pid for pid, p in PLANS.items() if p["price_type"] == "one_time"}
 
 def get_plan_from_price(stripe_price_id: str) -> str:

@@ -78,6 +78,14 @@ async def create_checkout(
         user_id = user["sub"]
         email   = user.get("email", "")
 
+        # FIX: Prevent free/BYOK plans from accessing checkout
+        # Both are now free and don't require Stripe
+        if req.plan in ("free", "byok"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Plan '{req.plan}' is free and does not require payment"
+            )
+
         # Get user from DB for existing Stripe customer ID
         result = await db.execute(
             select(User).where(User.id == user_id)

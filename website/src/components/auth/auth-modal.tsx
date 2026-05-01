@@ -34,6 +34,7 @@ function Toast({ message, type, onClose }: { message: string; type: "error" | "s
 function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }) {
   const btnRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
     // Load Google Identity Services script
@@ -54,6 +55,11 @@ function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) return;
 
+    // Clear any existing content
+    if (btnRef.current) {
+      btnRef.current.innerHTML = '';
+    }
+
     try {
       (window as any).google?.accounts?.id?.initialize({
         client_id: clientId,
@@ -69,8 +75,10 @@ function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }
         text: "continue_with",
         shape: "pill",
       });
+      setRendered(true);
     } catch (e) {
       console.error("Google SSO init error:", e);
+      setRendered(false);
     }
   }, [ready, onSuccess]);
 
@@ -78,7 +86,7 @@ function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }
 
   return (
     <>
-      <div ref={btnRef} className="flex justify-center" />
+      <div ref={btnRef} className="flex justify-center min-h-[44px]" />
       <div className="relative my-5">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-[var(--border)]" />
@@ -368,7 +376,7 @@ export function AuthModal() {
           {/* ── Signup View ───────────────────── */}
           {authView === "signup" && (
             <>
-              <GoogleButton onSuccess={handleGoogleSuccess} />
+              <GoogleButton key="signup-google" onSuccess={handleGoogleSuccess} />
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -405,7 +413,7 @@ export function AuthModal() {
           {/* ── Login View ────────────────────── */}
           {authView === "login" && (
             <>
-              <GoogleButton onSuccess={handleGoogleSuccess} />
+              <GoogleButton key="login-google" onSuccess={handleGoogleSuccess} />
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="loginEmail" className="text-xs">Email</Label>
