@@ -62,11 +62,14 @@ class AudioRecorder:
         source:   str = "system",
         on_level: Optional[Callable[[float], None]] = None,
         on_chunk: Optional[Callable[[bytes, int], None]] = None,
+        on_stereo_mix_warning: Optional[Callable[[], None]] = None,
         # on_chunk(raw_pcm_bytes_at_native_sr, native_sr)
+        # on_stereo_mix_warning() called when Stereo Mix is not enabled
     ):
         self._source    = source
         self._on_level  = on_level
         self._on_chunk  = on_chunk
+        self._on_stereo_mix_warning = on_stereo_mix_warning
         self._recording = False
         self._lock      = threading.Lock()
         self._stream    = None
@@ -121,8 +124,9 @@ class AudioRecorder:
                 try:
                     stream.stop()
                     stream.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    # FIX (LOW-1): Log errors instead of silent pass
+                    print(f"[recorder] Stream cleanup error: {e}")
         self._stream = self._mic_stream = None
 
         with self._lock:
@@ -153,7 +157,9 @@ class AudioRecorder:
         try:
             device_idx = self._find_loopback_device(sd)
             if device_idx is None:
-                print("[recorder] No loopback device found — falling back to mic")
+                # FIX: Emit warning to user about Stereo Mix not being enabled
+                print("[recorder] ⚠️  STEREO MIX NOT ENABLED — falling back to mic")
+                self._emit_stereo_mix_warning()
                 return False
 
             info      = sd.query_devices(device_idx)
@@ -237,6 +243,14 @@ class AudioRecorder:
         # STT modules resample to their required SR in their own threads.
         if self._on_chunk:
             self._on_chunk(chunk.tobytes(), self._native_sr)
+
+    def _emit_stereo_mix_warning(self):
+        """Emit warning callback when Stereo Mix is not enabled."""
+        if self._on_stereo_mix_warning:
+            try:
+                self._on_stereo_mix_warning()
+            except Exception as e:
+                print(f"[recorder] Warning callback failed: {e}")
 
     def _to_wav(self, audio: np.ndarray) -> bytes:
         buf = io.BytesIO()

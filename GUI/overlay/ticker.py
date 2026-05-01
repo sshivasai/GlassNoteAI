@@ -27,19 +27,22 @@ from utils import window_hide
 
 # ── Design tokens ──────────────────────────────────────────────────────────────
 _T = {
-    "bg":             "rgba(10, 10, 13, 0.96)",
-    "border":         "rgba(255,255,255,0.06)",
-    "text_partial":   "#b0bcd8",
-    "text_committed": "#4f8ef7",
-    "text_status":    "#4cca7e",
-    "dot_sep":        "#252530",
-    "success":        "#4cca7e",
-    "accent":         "#4f8ef7",
-    "amber":          "#f0a832",
-    "red":            "#e05f5f",
-    "silence_low":    "#f0a832",
-    "silence_mid":    "#4f8ef7",
-    "silence_high":   "#4cca7e",
+    "bg":             "rgba(9, 11, 16, 0.96)",
+    "bg_soft":        "rgba(56, 189, 248, 0.08)",
+    "border":         "rgba(148, 163, 184, 0.16)",
+    "border_active":  "rgba(56, 189, 248, 0.28)",
+    "text_partial":   "#d7e2f1",
+    "text_committed": "#38bdf8",
+    "text_status":    "#34d399",
+    "dot_sep":        "#3b4658",
+    "success":        "#34d399",
+    "accent":         "#38bdf8",
+    "amber":          "#fbbf24",
+    "red":            "#fb7185",
+    "silence_track":  "rgba(148, 163, 184, 0.14)",
+    "silence_low":    "#fbbf24",
+    "silence_mid":    "#38bdf8",
+    "silence_high":   "#34d399",
 }
 
 _SCROLL_CSS = """
@@ -55,12 +58,12 @@ _WORD_INTERVAL_MS  = 60
 # ── Ticker content ─────────────────────────────────────────────────────────────
 
 class _TickerContent(QWidget):
-    CONTENT_H = 22
+    CONTENT_H = 24
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._row = QHBoxLayout(self)
-        self._row.setContentsMargins(6, 0, 12, 0)
+        self._row.setContentsMargins(8, 0, 14, 0)
         self._row.setSpacing(0)
         self.setFixedHeight(self.CONTENT_H)
 
@@ -77,7 +80,7 @@ class _TickerContent(QWidget):
         ))
         lbl.setStyleSheet(
             f"color:{color}; background:transparent; border:none; "
-            f"padding:0 3px; white-space:nowrap;"
+            f"padding:0 4px; white-space:nowrap;"
         )
         lbl.setFixedHeight(self.CONTENT_H)
         lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -101,14 +104,14 @@ class _TickerContent(QWidget):
         return lbl
 
     def add_dot(self):
-        dot = self._make_lbl("·", _T["dot_sep"], font_size=12)
-        dot.setFixedWidth(10)
+        dot = self._make_lbl("·", _T["dot_sep"], font_size=13)
+        dot.setFixedWidth(12)
         self._row.addWidget(dot)
         self._refresh_width()
 
     def add_check(self):
-        chk = self._make_lbl("✓", _T["success"], bold=True, font_size=9)
-        chk.setFixedWidth(14)
+        chk = self._make_lbl("✓", _T["success"], bold=True, font_size=10)
+        chk.setFixedWidth(16)
         self._row.addWidget(chk)
         self._refresh_width()
 
@@ -131,8 +134,8 @@ class _TickerContent(QWidget):
 # ── Status badge ───────────────────────────────────────────────────────────────
 
 class _StatusBadge(QWidget):
-    W_COMPACT = 26
-    W_WIDE    = 100
+    W_COMPACT = 30
+    W_WIDE    = 104
     H         = 30
 
     def __init__(self, parent=None):
@@ -141,17 +144,20 @@ class _StatusBadge(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(4, 0, 4, 0)
-        lay.setSpacing(3)
+        lay.setContentsMargins(6, 0, 6, 0)
+        lay.setSpacing(4)
 
-        self._icon_lbl = QLabel("🎙")
-        self._icon_lbl.setFont(QFont("Segoe UI", 11))
-        self._icon_lbl.setStyleSheet("background:transparent; border:none;")
+        self._icon_lbl = QLabel("●")
+        self._icon_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self._icon_lbl.setStyleSheet(
+            f"background:{_T['bg_soft']}; border:1px solid {_T['border_active']}; "
+            f"border-radius:9px; color:{_T['text_status']}; padding:1px 5px;"
+        )
         self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._icon_lbl)
 
         self._text_lbl = QLabel("")
-        self._text_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        self._text_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self._text_lbl.setStyleSheet(
             f"background:transparent; border:none; "
             f"color:{_T['text_status']}; white-space:nowrap;"
@@ -160,8 +166,11 @@ class _StatusBadge(QWidget):
         lay.addWidget(self._text_lbl)
 
     def set_state(self, icon: str, label: str, color: str):
-        self._icon_lbl.setFont(QFont("Segoe UI", 11))
-        self._icon_lbl.setStyleSheet("background:transparent; border:none;")
+        self._icon_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self._icon_lbl.setStyleSheet(
+            f"background:{_T['bg_soft']}; border:1px solid {_T['border_active']}; "
+            f"border-radius:9px; color:{color}; padding:1px 5px;"
+        )
         self._icon_lbl.setText(icon)
 
         if label:
@@ -172,7 +181,7 @@ class _StatusBadge(QWidget):
             )
             self._text_lbl.setVisible(True)
             fm     = QFontMetrics(self._text_lbl.font())
-            needed = fm.horizontalAdvance(label) + 28
+            needed = fm.horizontalAdvance(label) + 34
             self.setFixedWidth(min(needed, self.W_WIDE))
         else:
             self._text_lbl.setVisible(False)
@@ -182,9 +191,10 @@ class _StatusBadge(QWidget):
         filled = "▮" * bars
         empty  = "▯" * (5 - bars)
         self._icon_lbl.setText(filled + empty)
-        self._icon_lbl.setFont(QFont("Consolas", 8))
+        self._icon_lbl.setFont(QFont("Consolas", 8, QFont.Weight.Bold))
         self._icon_lbl.setStyleSheet(
-            f"background:transparent; border:none; color:{_T['text_status']};"
+            f"background:{_T['bg_soft']}; border:1px solid {_T['border_active']}; "
+            f"border-radius:9px; color:{_T['text_status']}; padding:1px 4px;"
         )
 
 
@@ -199,7 +209,7 @@ class TranscriptTicker(QWidget):
     """
 
     BAR_H   = 2
-    TOTAL_H = 38
+    TOTAL_H = 40
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -242,7 +252,7 @@ class TranscriptTicker(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedHeight(self.TOTAL_H)
-        self.setMinimumWidth(260)
+        self.setMinimumWidth(280)
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -254,14 +264,14 @@ class TranscriptTicker(QWidget):
             QWidget#ticker_root {{
                 background: {_T['bg']};
                 border: 1px solid {_T['border']};
-                border-radius: 16px;
+                border-radius: 18px;
             }}
         """)
         outer.addWidget(self._root)
 
         root_row = QHBoxLayout(self._root)
-        root_row.setContentsMargins(3, 3, 8, 3)
-        root_row.setSpacing(0)
+        root_row.setContentsMargins(4, 4, 10, 4)
+        root_row.setSpacing(2)
 
         self._badge = _StatusBadge()
         root_row.addWidget(self._badge)
@@ -270,10 +280,10 @@ class TranscriptTicker(QWidget):
         div.setFrameShape(QFrame.Shape.VLine)
         div.setFixedWidth(1)
         div.setStyleSheet(
-            f"background: {_T['border']}; border:none; margin: 6px 0;"
+            f"background: {_T['border']}; border:none; margin: 7px 0;"
         )
         root_row.addWidget(div)
-        root_row.addSpacing(3)
+        root_row.addSpacing(4)
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(False)
@@ -285,7 +295,7 @@ class TranscriptTicker(QWidget):
         )
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._scroll.setStyleSheet(_SCROLL_CSS)
-        self._scroll.setFixedHeight(28)
+        self._scroll.setFixedHeight(30)
         root_row.addWidget(self._scroll, 1)
 
         self._content = _TickerContent()
@@ -293,9 +303,9 @@ class TranscriptTicker(QWidget):
 
     def _add_shadow(self):
         sh = QGraphicsDropShadowEffect(self)
-        sh.setBlurRadius(18)
-        sh.setOffset(0, 2)
-        sh.setColor(QColor(0, 0, 0, 110))
+        sh.setBlurRadius(26)
+        sh.setOffset(0, 6)
+        sh.setColor(QColor(0, 0, 0, 145))
         self._root.setGraphicsEffect(sh)
 
     # ── Paint (silence bar) ────────────────────────────────────────────────────
@@ -320,20 +330,25 @@ class TranscriptTicker(QWidget):
         else:
             color = QColor(_T["silence_high"])
 
-        color.setAlpha(180)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(color)
 
-        path = QPainterPath()
-        path.addRoundedRect(bar_x, bar_y, max(bar_w, 3), self.BAR_H, 1.0, 1.0)
-        p.drawPath(path)
+        track = QPainterPath()
+        track.addRoundedRect(bar_x, bar_y, bar_total_w, self.BAR_H, 1.0, 1.0)
+        p.setBrush(QColor(_T["silence_track"]))
+        p.drawPath(track)
+
+        color.setAlpha(210)
+        fill = QPainterPath()
+        fill.addRoundedRect(bar_x, bar_y, max(bar_w, 3), self.BAR_H, 1.0, 1.0)
+        p.setBrush(color)
+        p.drawPath(fill)
         p.end()
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def show_interview_mode(self):
         self._reset_state()
-        self._badge.set_state("🎙", "", _T["text_status"])
+        self._badge.set_state("●", "", _T["text_status"])
         self._scroll_timer.start()
         self.show()
         QTimer.singleShot(120, self._hide_from_capture)
@@ -349,10 +364,19 @@ class TranscriptTicker(QWidget):
         text = text.strip()
         if not text:
             return
-        old_words = self._displayed_partial.split()
-        new_words = text.split()
-        if len(new_words) > len(old_words):
-            self._word_queue.extend(new_words[len(old_words):])
+
+        # FIX (TICKER-2): Compare displayed words vs full incoming text
+        # _displayed_partial = what's SHOWN so far (built word-by-word by timer)
+        # text = full incoming text from STT
+        # We queue ONLY the delta between what's shown and what's new
+
+        displayed_words = self._displayed_partial.split() if self._displayed_partial else []
+        incoming_words = text.split()
+
+        # Only queue NEW words that haven't been displayed yet
+        if len(incoming_words) > len(displayed_words):
+            new_words = incoming_words[len(displayed_words):]
+            self._word_queue.extend(new_words)
             if not self._stream_timer.isActive():
                 self._stream_timer.start()
 
@@ -362,7 +386,7 @@ class TranscriptTicker(QWidget):
         if self._partial_lbl is not None:
             self._partial_lbl.setStyleSheet(
                 f"color:{_T['text_committed']}; background:transparent; "
-                f"border:none; padding:0 3px; white-space:nowrap;"
+                f"border:none; padding:0 4px; white-space:nowrap;"
             )
             self._partial_lbl = None
 
@@ -426,16 +450,16 @@ class TranscriptTicker(QWidget):
     # ── Status helpers ─────────────────────────────────────────────────────────
 
     def set_status_listening(self):
-        self._badge.set_state("🎙", "", _T["text_status"])
+        self._badge.set_state("●", "", _T["text_status"])
 
     def set_status_user_speaking(self):
-        self._badge.set_state("🎤", "", _T["text_status"])
+        self._badge.set_state("▮▮", "", _T["text_status"])
 
     def set_status_answering(self):
-        self._badge.set_state("⚡", "", _T["accent"])
+        self._badge.set_state("↯", "", _T["accent"])
 
     def set_status_cooldown(self, remaining: float):
-        self._badge.set_state("⏱", f"{remaining:.0f}s", _T["amber"])
+        self._badge.set_state("◷", f"{remaining:.0f}s", _T["amber"])
 
     def set_silence_progress(self, age: float, threshold: float):
         self._silence_progress = min(age / max(threshold, 0.1), 1.0)

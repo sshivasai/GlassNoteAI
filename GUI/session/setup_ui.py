@@ -130,52 +130,54 @@ class SessionSetupWindow(QWidget):
     _sig_session_err  = pyqtSignal(str, bool)        # message, is_quota_error
 
     # Spinner frames for animated loading indicator (UX-3, PERF-3)
-    _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    _SPINNER = ["|", "/", "-", "\\"]
 
     # Colour tokens used only inside this file
     _DARK = {
-        "win_bg":       "#0d0d10",
-        "title_bg":     "#111115",
-        "title_border": "#1e1e24",
-        "body_bg":      "#0d0d10",
-        "text":         "#e0e0e8",
-        "text2":        "#888",
-        "text3":        "#555",
-        "accent":       "#4f8ef7",
-        "accent_dim":   "rgba(79,142,247,0.12)",
-        "accent_brd":   "rgba(79,142,247,0.35)",
-        "danger":       "#e05252",
-        "danger_dim":   "rgba(224,82,82,0.10)",
-        "success":      "#4cca7e",
-        "warning":      "#f59e0b",
-        "border":       "#1e1e24",
-        "input_bg":     "#17171c",
-        "input_brd":    "#252530",
-        "sep":          "#1a1a22",
-        "close_icon":   "#666",
-        "settings_icon":"#666",
+        "win_bg":       "#090b10",
+        "title_bg":     "#0f1520",
+        "title_border": "#273041",
+        "body_bg":      "#10141d",
+        "text":         "#f4f7fb",
+        "text2":        "#aab6c8",
+        "text3":        "#738095",
+        "accent":       "#38bdf8",
+        "accent_hover": "#0ea5e9",
+        "accent_dim":   "rgba(56,189,248,0.10)",
+        "accent_brd":   "rgba(56,189,248,0.34)",
+        "danger":       "#fb7185",
+        "danger_dim":   "rgba(251,113,133,0.12)",
+        "success":      "#34d399",
+        "warning":      "#fbbf24",
+        "border":       "#273041",
+        "input_bg":     "#151b26",
+        "input_brd":    "#2b3648",
+        "sep":          "#202838",
+        "close_icon":   "#94a3b8",
+        "settings_icon":"#94a3b8",
     }
     _LIGHT = {
-        "win_bg":       "#f5f5f8",
-        "title_bg":     "#eeeef4",
-        "title_border": "#d8d8e0",
-        "body_bg":      "#f5f5f8",
-        "text":         "#18181e",
-        "text2":        "#555",
-        "text3":        "#888",
-        "accent":       "#2563eb",
-        "accent_dim":   "rgba(37,99,235,0.08)",
-        "accent_brd":   "rgba(37,99,235,0.30)",
-        "danger":       "#dc2626",
-        "danger_dim":   "rgba(220,38,38,0.08)",
-        "success":      "#16a34a",
-        "warning":      "#d97706",
-        "border":       "#d4d4de",
+        "win_bg":       "#f7f9fc",
+        "title_bg":     "#ffffff",
+        "title_border": "#d8e0ea",
+        "body_bg":      "#ffffff",
+        "text":         "#111827",
+        "text2":        "#526071",
+        "text3":        "#8995a6",
+        "accent":       "#0284c7",
+        "accent_hover": "#0369a1",
+        "accent_dim":   "rgba(2,132,199,0.08)",
+        "accent_brd":   "rgba(2,132,199,0.28)",
+        "danger":       "#e11d48",
+        "danger_dim":   "rgba(225,29,72,0.08)",
+        "success":      "#059669",
+        "warning":      "#b45309",
+        "border":       "#d8e0ea",
         "input_bg":     "#ffffff",
-        "input_brd":    "#d0d0da",
-        "sep":          "#e0e0ea",
-        "close_icon":   "#999",
-        "settings_icon":"#999",
+        "input_brd":    "#ccd6e3",
+        "sep":          "#e7edf4",
+        "close_icon":   "#8995a6",
+        "settings_icon":"#8995a6",
     }
 
     def __init__(self, parent=None):
@@ -202,8 +204,8 @@ class SessionSetupWindow(QWidget):
 
     def _build_ui(self):
         """Constructs the multi-step UI layout for the session configuration."""
-        self.setWindowTitle("GlassNote — New Session")
-        self.setFixedWidth(500)
+        self.setWindowTitle("GlassNote - New Session")
+        self.setMinimumWidth(540)
         self.setFont(QFont("Segoe UI", 11))
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -270,7 +272,7 @@ class SessionSetupWindow(QWidget):
 
         row.addSpacing(2)
 
-        self._btn_theme = QPushButton("☀" if th.is_dark() else "🌙")
+        self._btn_theme = QPushButton("☀" if th.is_dark() else "☾")
         self._btn_theme.setObjectName("theme_btn")
         self._btn_theme.setFixedSize(32, 32)
         self._btn_theme.setToolTip("Toggle dark / light")
@@ -468,10 +470,10 @@ class SessionSetupWindow(QWidget):
             remaining_str = "Unlimited sessions"
             info_color    = t["success"]
         elif sessions_remaining == 0:
-            remaining_str = "⚠ No sessions remaining — upgrade to continue"
+            remaining_str = "No sessions remaining - upgrade to continue"
             info_color    = t["danger"]
         elif sessions_remaining == 1:
-            remaining_str = "⚠ Last session remaining"
+            remaining_str = "Last session remaining"
             info_color    = t["warning"]
         elif sessions_remaining > 0:
             remaining_str = f"{sessions_remaining} sessions remaining"
@@ -486,22 +488,26 @@ class SessionSetupWindow(QWidget):
 
         if plan_id == "free":
             banner = (
-                f"✅ {plan_name} Plan  •  {remaining_str}  •  {dur_limit} each\n"
-                f"   {len(allowed)} model{'s' if len(allowed) != 1 else ''} available  •  Upgrade for more"
+                f"{plan_name} Plan  |  {remaining_str}  |  {dur_limit} each\n"
+                f"{len(allowed)} model{'s' if len(allowed) != 1 else ''} available  |  Upgrade for more"
             )
         elif plan_data["session_duration_minutes"] > 0:
             banner = (
-                f"✅ {plan_name} Plan  •  {remaining_str}  •  {dur_limit} each\n"
+                f"{plan_name} Plan  |  {remaining_str}  |  {dur_limit} each\n"
                 f"   {len(allowed)} models available"
             )
         else:
             banner = (
-                f"✅ {plan_name} Plan  •  {remaining_str}\n"
+                f"{plan_name} Plan  |  {remaining_str}\n"
                 f"   All {len(allowed)} models available"
             )
 
         self._plan_info.setText(banner)
-        self._plan_info.setStyleSheet(f"color: {info_color}; font-size: 12px;")
+        self._plan_info.setStyleSheet(
+            f"color: {info_color}; font-size: 12px; font-weight: 600;"
+            f"background: {t['accent_dim']}; border: 1px solid {t['accent_brd']};"
+            f"border-radius: 8px; padding: 10px 12px;"
+        )
 
     def _get_selected_provider_model(self):
         idx = self.model_combo.currentIndex()
@@ -539,7 +545,7 @@ class SessionSetupWindow(QWidget):
                 color: {t['text3']};
                 font-size: 10px;
                 font-weight: 700;
-                letter-spacing: 1.2px;
+                letter-spacing: 0;
                 margin-bottom: 2px;
             }}
             QLabel#status_lbl {{
@@ -553,10 +559,10 @@ class SessionSetupWindow(QWidget):
             QLineEdit, QTextEdit {{
                 background: {t['input_bg']};
                 border: 1px solid {t['input_brd']};
-                border-radius: 7px;
+                border-radius: 8px;
                 color: {t['text']};
-                font-size: 12px;
-                padding: 7px 10px;
+                font-size: 13px;
+                padding: 9px 12px;
                 selection-background-color: {t['accent_dim']};
             }}
             QLineEdit:focus, QTextEdit:focus {{
@@ -566,11 +572,11 @@ class SessionSetupWindow(QWidget):
             QComboBox {{
                 background: {t['input_bg']};
                 border: 1px solid {t['input_brd']};
-                border-radius: 7px;
+                border-radius: 8px;
                 color: {t['text']};
-                font-size: 12px;
-                padding: 6px 10px;
-                min-height: 28px;
+                font-size: 13px;
+                padding: 8px 12px;
+                min-height: 32px;
             }}
             QComboBox:focus {{ border-color: {t['accent']}; }}
             QComboBox::drop-down {{
@@ -618,19 +624,19 @@ class SessionSetupWindow(QWidget):
                 color: white;
                 border: none;
                 border-radius: 8px;
-                font-size: 12px;
-                font-weight: 600;
-                padding: 8px 22px;
-                min-height: 34px;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 9px 22px;
+                min-height: 36px;
             }}
             QPushButton#primary:hover {{
-                background: rgba(79,142,247,0.85);
+                background: {t['accent_hover']};
             }}
             QPushButton#primary:pressed {{
-                background: rgba(79,142,247,0.70);
+                background: {t['accent_hover']};
             }}
             QPushButton#primary:disabled {{
-                background: rgba(79,142,247,0.40);
+                background: {t['accent_dim']};
                 color: rgba(255,255,255,0.55);
             }}
             QPushButton#ghost {{
@@ -638,9 +644,9 @@ class SessionSetupWindow(QWidget):
                 border: 1px solid {t['border']};
                 border-radius: 8px;
                 color: {t['text2']};
-                font-size: 12px;
-                padding: 8px 18px;
-                min-height: 34px;
+                font-size: 13px;
+                padding: 9px 18px;
+                min-height: 36px;
             }}
             QPushButton#ghost:hover {{
                 border-color: {t['accent']};
@@ -672,8 +678,8 @@ class SessionSetupWindow(QWidget):
             QWidget#title_bar {{
                 background: {t['title_bg']};
                 border-bottom: 1px solid {t['title_border']};
-                border-top-left-radius: 12px;
-                border-top-right-radius: 12px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
             }}
         """)
 
@@ -686,7 +692,7 @@ class SessionSetupWindow(QWidget):
             f"margin-left:4px; border:none; background:transparent;"
         )
         self.step_label.setStyleSheet(
-            f"color:{t['text3']}; font-size:10px; letter-spacing:1px;"
+            f"color:{t['text3']}; font-size:10px; letter-spacing:0;"
             f"border:none; background:transparent;"
         )
         self._btn_settings.setStyleSheet(f"""
@@ -703,7 +709,7 @@ class SessionSetupWindow(QWidget):
                 border-color: {t['accent_brd']};
             }}
             QPushButton#settings_btn:pressed {{
-                background: rgba(79,142,247,0.18);
+                background: {t['accent_dim']};
             }}
         """)
         self._btn_theme.setStyleSheet(f"""
@@ -720,11 +726,11 @@ class SessionSetupWindow(QWidget):
                 border-color: {t['accent_brd']};
             }}
         """)
-        self._btn_theme.setText("☀" if th.is_dark() else "🌙")
+        self._btn_theme.setText("☀" if th.is_dark() else "☾")
         self._btn_close.setStyleSheet(f"""
             QPushButton#close_btn {{
-                background: rgba(224,82,82,0.12);
-                border: 1px solid rgba(224,82,82,0.25);
+                background: {t['danger_dim']};
+                border: 1px solid {t['danger']};
                 border-radius: 8px;
                 color: {t['danger']};
                 font-size: 13px;
@@ -736,7 +742,7 @@ class SessionSetupWindow(QWidget):
                 color: white;
             }}
             QPushButton#close_btn:pressed {{
-                background: rgba(224,82,82,0.70);
+                background: {t['danger']};
             }}
         """)
 

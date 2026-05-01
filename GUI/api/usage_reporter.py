@@ -27,19 +27,46 @@ _REPORTER_LOCK = threading.Lock()
 
 
 def _cache_pending(payload: dict) -> None:
-    """Save a failed payload to the local cache for later retry."""
-    try:
-        PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
-        existing: list = []
-        if PENDING_FILE.exists():
-            with open(PENDING_FILE, "r") as f:
-                existing = json.load(f)
-        existing.append(payload)
-        with open(PENDING_FILE, "w") as f:
-            json.dump(existing, f)
-        print(f"[usage] Cached offline payload (total pending: {len(existing)})")
-    except Exception as e:
-        print(f"[usage] Failed to cache payload: {e}")
+    """
+    Save a failed payload to the local cache for later retry.
+
+    FIX: Atomic write using temp file + rename to prevent corruption.
+    """
+    with _REPORTER_LOCK:  # Thread-safe (lock already exists)
+        try:
+            PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
+            existing: list = []
+
+            # Read existing with corruption handling
+            if PENDING_FILE.exists():
+                try:
+                    with open(PENDING_FILE, "r") as f:
+                        existing = json.load(f)
+                except (json.JSONDecodeError, IOError) as e:
+                    # Corrupt file → backup and reset
+                    backup = PENDING_FILE.with_suffix('.corrupt')
+                    try:
+                        PENDING_FILE.rename(backup)
+                        print(f"[usage] ⚠️  Corrupt cache backed up to {backup}")
+                    except Exception:
+                        PENDING_FILE.unlink(missing_ok=True)
+                        print(f"[usage] ⚠️  Corrupt cache deleted: {e}")
+
+            existing.append(payload)
+
+            # FIX: Atomic write using temp file + rename
+            temp_file = PENDING_FILE.with_suffix('.tmp')
+            with open(temp_file, "w") as f:
+                json.dump(existing, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())  # Force write to disk
+
+            # Atomic rename (prevents corruption if killed mid-write)
+            temp_file.replace(PENDING_FILE)
+
+            print(f"[usage] Cached offline payload (total pending: {len(existing)})")
+        except Exception as e:
+            print(f"[usage] Failed to cache payload: {e}")
 
 
 def _flush_pending(api_url: str, api_token: str) -> None:
@@ -77,8 +104,13 @@ def _flush_pending(api_url: str, api_token: str) -> None:
                 still_pending.append(payload)
 
         if still_pending:
-            with open(PENDING_FILE, "w") as f:
-                json.dump(still_pending, f)
+            # FIX: Atomic write using temp file + rename
+            temp_file = PENDING_FILE.with_suffix('.tmp')
+            with open(temp_file, "w") as f:
+                json.dump(still_pending, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            temp_file.replace(PENDING_FILE)
         else:
             PENDING_FILE.unlink(missing_ok=True)
             print(f"[usage] ✓ All pending payloads flushed")

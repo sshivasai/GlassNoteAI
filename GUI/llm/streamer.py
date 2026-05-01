@@ -104,6 +104,21 @@ class LLMStreamer:
         worker = self._worker
         if worker is None:
             return
+
+        # FIX: Disconnect all signals BEFORE detaching to prevent:
+        # 1. Stale callbacks firing (old worker's stream_done → new callback)
+        # 2. Memory leak (worker keeps references to connected slots)
+        # 3. UI glitches (mixed responses from different queries)
+        try:
+            worker.token_received.disconnect()
+            worker.stream_done.disconnect()
+            worker.stream_error.disconnect()
+            worker.finished.disconnect()
+        except (RuntimeError, TypeError):
+            # Already disconnected or C++ object deleted
+            pass
+
+        # Request cancel (non-blocking)
         # TTFT-OPT: detach old worker immediately, don't block 300ms
         # Previously called worker.wait(300) which blocked the calling thread
         # for up to 300ms before the new stream could start. Now we signal
@@ -113,12 +128,15 @@ class LLMStreamer:
                 worker.request_cancel()
                 # Do NOT wait — detach immediately so the new stream starts
                 # without any blocking delay. The worker will finish in the
-                # background and its signals are disconnected below.
+                # background and its signals are now disconnected.
         except RuntimeError:
             # Qt C++ object already deleted — safe to ignore
             pass
+
+        # Detach references
         self._worker     = None
-        self._worker_ref = None
+        self._worker_ref = worker  # Keep ref until it finishes to prevent premature GC
+        self._cancel_event = None
 
     def is_running(self) -> bool:
         if self._worker is None:

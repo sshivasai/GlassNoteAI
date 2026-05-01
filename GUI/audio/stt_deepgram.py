@@ -438,7 +438,14 @@ class DeepgramStreamingSTT:
                     break
                 try:
                     ws.ping()
-                except Exception:
+                except Exception as e:
+                    # FIX (HIGH-2): Ping failed → close WS to trigger immediate reconnect
+                    # Without this, sender continues queuing audio for 30s+ until timeout
+                    print(f"[deepgram] Flux ping failed (triggering reconnect): {e}")
+                    try:
+                        ws.close(1000, "keepalive ping failed")
+                    except Exception:
+                        pass
                     break
             return
         keepalive_msg = json.dumps({"type": "KeepAlive"})

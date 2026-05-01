@@ -188,6 +188,7 @@ class AppController(QObject):
             lambda lvl: self._sig_audio_level.emit(lvl)
         )
         self._audio.user_speaking_changed.connect(self._on_user_speaking_changed)
+        self._audio.stereo_mix_warning.connect(self._on_stereo_mix_warning)
         # BUG-9/PERF-2: cross-thread pipeline warm start after STT credentials pre-fetch
         self._sig_start_pipeline.connect(self._audio.start_recording_with_source)
         # PERF-6: warm-up complete → pill dot turns green
@@ -208,6 +209,38 @@ class AppController(QObject):
             if auto_answer and smart_answering:
                 # Resume the pipeline to dispatch any pending smart dispatch
                 self._audio.resume()
+
+    def _on_stereo_mix_warning(self):
+        """
+        Show warning when Stereo Mix is not enabled.
+
+        Windows requires 'Stereo Mix' or similar loopback device to be manually
+        enabled in Recording Devices for system audio capture to work.
+        """
+        warning_msg = (
+            "**System Audio Capture Requires 'Stereo Mix'**\n\n"
+            "To capture system audio (interviewer's voice), you need to enable "
+            "the 'Stereo Mix' recording device in Windows.\n\n"
+            "**How to enable:**\n"
+            "1. Right-click the **speaker icon** in the taskbar → **Sounds**\n"
+            "2. Go to the **Recording** tab\n"
+            "3. Right-click in the empty space → **Show Disabled Devices**\n"
+            "4. Right-click **Stereo Mix** → **Enable**\n"
+            "5. Click **OK** and restart interview mode\n\n"
+            "_Currently using microphone as fallback (captures both voices)._"
+        )
+
+        # Show non-destructive banner (doesn't overwrite active answer)
+        if hasattr(self.overlay, 'show_notification_banner'):
+            self.overlay.show_notification_banner(warning_msg, "warning")
+        else:
+            # Fallback: show as error overlay
+            self.overlay.set_error(warning_msg)
+
+        self.overlay.show()
+        self.pill.set_overlay_visible(True)
+
+        print("[app] ⚠️  Stereo Mix warning shown to user")
 
     # ── Hotkeys ────────────────────────────────────────────────────────────────
 

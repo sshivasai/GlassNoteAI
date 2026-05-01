@@ -25,20 +25,22 @@ def _api_url() -> str:
     return url.rstrip("/")
 
 _DARK = {
-    "win_bg":"#0d0d10","title_bg":"#111115","title_border":"#1e1e24",
-    "text":"#e0e0e8","text2":"#888","text3":"#555",
-    "accent":"#5b8ff9","accent_dim":"rgba(91,143,249,0.13)","accent_brd":"rgba(91,143,249,0.32)",
-    "danger":"#f06060","success":"#42d68a","warning":"#f5b53f",
-    "border":"#1e1e24","input_bg":"#17171c","input_brd":"#252530",
-    "google_bg":"#1a1a20","google_brd":"#2a2a35",
+    "win_bg":"#090b10","title_bg":"#10141d","title_border":"#273041",
+    "text":"#f4f7fb","text2":"#aab6c8","text3":"#738095",
+    "accent":"#38bdf8","accent_hover":"#0ea5e9",
+    "accent_dim":"rgba(56,189,248,0.10)","accent_brd":"rgba(56,189,248,0.34)",
+    "danger":"#fb7185","success":"#34d399","warning":"#fbbf24",
+    "border":"#273041","input_bg":"#151b26","input_brd":"#2b3648",
+    "google_bg":"#111827","google_brd":"#273041",
 }
 _LIGHT = {
-    "win_bg":"#f5f5f8","title_bg":"#eeeef4","title_border":"#d8d8e0",
-    "text":"#18181e","text2":"#555","text3":"#888",
-    "accent":"#2563eb","accent_dim":"rgba(37,99,235,0.08)","accent_brd":"rgba(37,99,235,0.30)",
-    "danger":"#dc2626","success":"#16a34a","warning":"#d97706",
-    "border":"#d4d4de","input_bg":"#ffffff","input_brd":"#d0d0da",
-    "google_bg":"#ffffff","google_brd":"#d0d0da",
+    "win_bg":"#f7f9fc","title_bg":"#ffffff","title_border":"#d8e0ea",
+    "text":"#111827","text2":"#526071","text3":"#8995a6",
+    "accent":"#0284c7","accent_hover":"#0369a1",
+    "accent_dim":"rgba(2,132,199,0.08)","accent_brd":"rgba(2,132,199,0.26)",
+    "danger":"#e11d48","success":"#059669","warning":"#b7791f",
+    "border":"#d8e0ea","input_bg":"#ffffff","input_brd":"#cbd5e1",
+    "google_bg":"#ffffff","google_brd":"#d8e0ea",
 }
 def _t(): return _DARK if th.is_dark() else _LIGHT
 def _sep():
@@ -75,7 +77,7 @@ class LoginWindow(QWidget):
     # ── Build ──────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        self.setWindowTitle("GlassNote — Sign In")
+        self.setWindowTitle("GlassNote - Sign In")
         self.setFixedWidth(440)
         self.setFont(QFont("Segoe UI", 11))
         self.setWindowFlags(
@@ -108,7 +110,7 @@ class LoginWindow(QWidget):
         self._title_lbl.setObjectName("title_label")
         tl.addWidget(self._title_lbl); tl.addStretch()
 
-        close_btn = QPushButton("✕"); close_btn.setObjectName("close_btn")
+        close_btn = QPushButton("×"); close_btn.setObjectName("close_btn")
         close_btn.setFixedSize(32, 32)
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.clicked.connect(self.close)
@@ -176,7 +178,7 @@ class LoginWindow(QWidget):
         # Dashboard note
         dash_lbl = QLabel(
             "Track usage & manage billing at "
-            f"<a href='{DASHBOARD_URL}' style='color:#5b8ff9;'>glassnote.ai/dashboard</a>"
+            f"<a href='{DASHBOARD_URL}' style='color:#38bdf8;'>glassnote.ai/dashboard</a>"
         )
         dash_lbl.setObjectName("dash_label")
         dash_lbl.setOpenExternalLinks(True)
@@ -225,7 +227,7 @@ class LoginWindow(QWidget):
                 code  = q.get("code",  [None])[0]
                 error = q.get("error", [None])[0]
                 code_holder[0] = f"ERR:{error}" if error else (code or "")
-                html = b"<html><body style='background:#0d0d10;color:#e0e0e8;font-family:sans-serif;text-align:center;padding-top:80px'><h2 style='color:#5b8ff9'>GlassNote</h2><p>Sign-in complete! You can close this tab.</p></body></html>"
+                html = b"<html><body style='background:#090b10;color:#f4f7fb;font-family:sans-serif;text-align:center;padding-top:80px'><h2 style='color:#38bdf8'>GlassNote</h2><p>Sign-in complete! You can close this tab.</p></body></html>"
                 self.send_response(200); self.send_header("Content-type","text/html"); self.end_headers()
                 self.wfile.write(html); self.server.should_stop = True
 
@@ -429,31 +431,31 @@ class LoginWindow(QWidget):
     def _apply_theme(self):
         t = _t()
         self.setStyleSheet(f"""
-            QWidget#body {{ background:{t['win_bg']}; border-bottom-left-radius:14px; border-bottom-right-radius:14px; }}
-            QLabel#field_label {{ color:{t['text3']}; font-size:10px; font-weight:700; letter-spacing:1.2px; background:transparent; }}
+            QWidget#body {{ background:{t['win_bg']}; border-bottom-left-radius:8px; border-bottom-right-radius:8px; }}
+            QLabel#field_label {{ color:{t['text3']}; font-size:11px; font-weight:700; letter-spacing:0; background:transparent; }}
             QLabel#desc_label {{ color:{t['text2']}; font-size:12px; background:transparent; }}
             QLabel#status_label {{ font-size:12px; background:transparent; }}
-            QLabel#toggle_label {{ color:{t['text3']}; font-size:11px; background:transparent; }}
+            QLabel#toggle_label {{ color:{t['text2']}; font-size:12px; background:transparent; }}
             QLabel#toggle_label:hover {{ color:{t['accent']}; }}
             QLabel#div_label {{ color:{t['text3']}; font-size:11px; background:transparent; padding:0 8px; }}
-            QLabel#dash_label {{ color:{t['text3']}; font-size:10px; background:transparent; }}
+            QLabel#dash_label {{ color:{t['text3']}; font-size:11px; background:transparent; }}
             QFrame[frameShape="4"] {{ background:{t['border']}; max-height:1px; border:none; }}
-            QLineEdit {{ background:{t['input_bg']}; border:1px solid {t['input_brd']}; border-radius:7px; color:{t['text']}; font-size:12px; padding:8px 12px; }}
+            QLineEdit {{ background:{t['input_bg']}; border:1px solid {t['input_brd']}; border-radius:8px; color:{t['text']}; font-size:13px; padding:9px 12px; }}
             QLineEdit:focus {{ border-color:{t['accent']}; }}
             QLineEdit::placeholder {{ color:{t['text3']}; }}
-            QPushButton#primary {{ background:{t['accent']}; color:white; border:none; border-radius:8px; font-size:13px; font-weight:600; padding:10px 22px; min-height:40px; }}
-            QPushButton#primary:hover {{ background:rgba(91,143,249,0.85); }}
+            QPushButton#primary {{ background:{t['accent']}; color:white; border:none; border-radius:8px; font-size:13px; font-weight:700; padding:10px 22px; min-height:42px; }}
+            QPushButton#primary:hover {{ background:{t['accent_hover']}; }}
             QPushButton#primary:disabled {{ background:{t['text3']}; }}
-            QPushButton#google_btn {{ background:{t['google_bg']}; color:{t['text']}; border:1px solid {t['google_brd']}; border-radius:8px; font-size:13px; font-weight:500; padding:9px 16px; min-height:40px; }}
+            QPushButton#google_btn {{ background:{t['google_bg']}; color:{t['text']}; border:1px solid {t['google_brd']}; border-radius:8px; font-size:13px; font-weight:600; padding:9px 16px; min-height:42px; }}
             QPushButton#google_btn:hover {{ border-color:{t['accent']}; color:{t['accent']}; background:{t['accent_dim']}; }}
             QPushButton#google_btn:disabled {{ color:{t['text3']}; }}
         """)
         self._title_bar.setStyleSheet(f"""
-            QWidget#title_bar {{ background:{t['title_bg']}; border-bottom:1px solid {t['title_border']}; border-top-left-radius:14px; border-top-right-radius:14px; }}
+            QWidget#title_bar {{ background:{t['title_bg']}; border-bottom:1px solid {t['title_border']}; border-top-left-radius:8px; border-top-right-radius:8px; }}
         """)
-        self._title_lbl.setStyleSheet(f"color:{t['text']};font-size:14px;font-weight:600;margin-left:6px;border:none;background:transparent;")
+        self._title_lbl.setStyleSheet(f"color:{t['text']};font-size:15px;font-weight:700;margin-left:6px;border:none;background:transparent;")
         self._close_btn.setStyleSheet(f"""
-            QPushButton#close_btn {{ background:rgba(240,96,96,0.10); border:1px solid rgba(240,96,96,0.22); border-radius:8px; color:{t['danger']}; font-size:13px; font-weight:700; }}
+            QPushButton#close_btn {{ background:transparent; border:1px solid {t['border']}; border-radius:8px; color:{t['text3']}; font-size:13px; font-weight:700; }}
             QPushButton#close_btn:hover {{ background:{t['danger']}; border-color:{t['danger']}; color:white; }}
         """)
 

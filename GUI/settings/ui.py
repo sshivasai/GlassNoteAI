@@ -74,8 +74,8 @@ class SettingsWindow(QWidget):
 
     def _build_ui(self):
         """Constructs the settings tabs and connects UI components."""
-        self.setWindowTitle("GlassNote — Settings")
-        self.setMinimumSize(560, 620)
+        self.setWindowTitle("GlassNote - Settings")
+        self.setMinimumSize(640, 680)
         self.setFont(QFont("Segoe UI", 11))
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -113,7 +113,7 @@ class SettingsWindow(QWidget):
         wd = QLabel("Settings and AI features are tied to your GlassNote account.")
         wd.setObjectName("wall_desc"); wd.setAlignment(Qt.AlignmentFlag.AlignCenter)
         wd.setWordWrap(True); wl.addWidget(wd)
-        self._wall_btn = QPushButton("\U0001f511  Sign In / Create Account")
+        self._wall_btn = QPushButton("Sign In / Create Account")
         self._wall_btn.setObjectName("primary")
         self._wall_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._wall_btn.clicked.connect(self._open_login)
@@ -125,11 +125,11 @@ class SettingsWindow(QWidget):
         sl = QVBoxLayout(sp); sl.setContentsMargins(0, 0, 0, 0); sl.setSpacing(0)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("main_tabs")
-        self.tabs.addTab(self._tab_account(), "\U0001f464  Account")
-        self.tabs.addTab(self._tab_models(),  "\U0001f916  Models")
-        self.tabs.addTab(self._tab_audio(),   "\U0001f3a4  Audio")
-        self.tabs.addTab(self._tab_overlay(), "\U0001f5a5  Overlay")
-        self.tabs.addTab(self._tab_capture(), "\U0001f4f8  Capture")
+        self.tabs.addTab(self._tab_account(), "Account")
+        self.tabs.addTab(self._tab_models(),  "Models")
+        self.tabs.addTab(self._tab_audio(),   "Audio")
+        self.tabs.addTab(self._tab_overlay(), "Overlay")
+        self.tabs.addTab(self._tab_capture(), "Capture")
         sl.addWidget(self.tabs)
         sl.addWidget(self._build_footer())
         self._stack.addWidget(sp)  # index 1
@@ -143,18 +143,18 @@ class SettingsWindow(QWidget):
         layout = QHBoxLayout(self._title_bar_widget)
         layout.setContentsMargins(20, 0, 12, 0)
 
-        title = QLabel("⚙  Settings")
+        title = QLabel("Settings")
         title.setObjectName("settings_title_lbl")
         layout.addWidget(title)
         layout.addStretch()
 
-        self._theme_btn = QPushButton("☀" if th.is_dark() else "🌙")
+        self._theme_btn = QPushButton("☀" if th.is_dark() else "☾")
         self._theme_btn.setFixedSize(32, 32)
         self._theme_btn.setToolTip("Toggle dark / light mode")
         self._theme_btn.clicked.connect(self._toggle_theme)
         layout.addWidget(self._theme_btn)
 
-        close_btn = QPushButton("✕")
+        close_btn = QPushButton("×")
         close_btn.setObjectName("settings_close_btn")
         close_btn.setFixedSize(28, 28)
         close_btn.clicked.connect(self.close)
@@ -769,34 +769,38 @@ class SettingsWindow(QWidget):
 
         self.setStyleSheet(th.make_stylesheet(t) + f"""
             QTabWidget#main_tabs::pane {{
-                border: 1px solid {t['border']};
-                border-radius: 8px;
+                border: none;
                 background: {t['bg2']};
             }}
             QTabBar::tab {{
-                background: {t['bg3']};
+                background: transparent;
                 color: {t['text3']};
-                padding: 8px 16px;
+                padding: 11px 18px;
                 border: none;
                 font-size: 12px;
-                margin-right: 2px;
+                font-weight: 700;
+                margin-right: 1px;
             }}
             QTabBar::tab:selected {{
-                background: {t['bg2']};
+                background: {t['code_bg']};
                 color: {t['text']};
                 border-bottom: 2px solid {t['accent']};
+            }}
+            QTabBar::tab:hover {{
+                background: {t['code_bg']};
+                color: {t['accent']};
             }}
             QLabel#section {{
                 color: {t['text3']};
                 font-size: 11px;
-                letter-spacing: 1px;
-                font-weight: 600;
-                padding-top: 8px;
+                letter-spacing: 0;
+                font-weight: 700;
+                padding-top: 12px;
                 background: transparent;
             }}
             QLabel#note_label {{
-                color: {t['text3']};
-                font-size: 11px;
+                color: {t['text2']};
+                font-size: 12px;
                 background: transparent;
             }}
             QLabel#value_label {{
@@ -809,7 +813,7 @@ class SettingsWindow(QWidget):
 
         self._title_bar_widget.setStyleSheet(f"""
             QWidget#settings_title_bar {{
-                background: {t['bg']};
+                background: {t['bg2']};
                 border-bottom: 1px solid {t['border']};
             }}
         """)
@@ -817,26 +821,33 @@ class SettingsWindow(QWidget):
         for lbl in self._title_bar_widget.findChildren(QLabel):
             if lbl.objectName() == "settings_title_lbl":
                 lbl.setStyleSheet(
-                    f"color:{t['text']}; font-size:14px; font-weight:600;"
+                    f"color:{t['text']}; font-size:15px; font-weight:700;"
                     f"background:transparent; border:none;"
                 )
 
         self._theme_btn.setStyleSheet(th.theme_btn_style(t))
-        self._theme_btn.setText("☀" if th.is_dark() else "🌙")
+        self._theme_btn.setText("☀" if th.is_dark() else "☾")
 
         for btn in self._title_bar_widget.findChildren(QPushButton):
             if btn.objectName() == "settings_close_btn":
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background: transparent; border: none;
-                        color: {t['text3']}; font-size: 14px;
+                        background: {t['danger_dim']};
+                        border: 1px solid {t['danger']};
+                        border-radius: 8px;
+                        color: {t['danger']};
+                        font-size: 13px;
+                        font-weight: 700;
                     }}
-                    QPushButton:hover {{ color: {t['danger']}; }}
+                    QPushButton:hover {{
+                        color: white;
+                        background: {t['danger']};
+                    }}
                 """)
 
         self._footer_widget.setStyleSheet(f"""
             QWidget#settings_footer {{
-                background: {t['bg']};
+                background: {t['bg2']};
                 border-top: 1px solid {t['border']};
             }}
         """)
@@ -856,9 +867,9 @@ class SettingsWindow(QWidget):
                 if n == "wall_icon":
                     lbl.setStyleSheet(f"color:{t['accent']}; font-size:42px; background:transparent;")
                 elif n == "wall_title":
-                    lbl.setStyleSheet(f"color:{t['text']}; font-size:16px; font-weight:700; background:transparent;")
+                    lbl.setStyleSheet(f"color:{t['text']}; font-size:20px; font-weight:800; background:transparent;")
                 elif n == "wall_desc":
-                    lbl.setStyleSheet(f"color:{t['text3']}; font-size:12px; background:transparent;")
+                    lbl.setStyleSheet(f"color:{t['text2']}; font-size:13px; background:transparent;")
 
     def _toggle_theme(self):
         th.toggle()
@@ -957,10 +968,12 @@ class SettingsWindow(QWidget):
         # Verify plan from server in background
         self._verify_plan_from_server_v2()
 
-        # API Keys
-        self.anthropic_key.setText(c.get("anthropic_api_key", ""))
-        self.openai_key.setText(c.get("openai_api_key", ""))
-        self.deepgram_key.setText(c.get("deepgram_api_key", ""))
+        # API Keys - FIX: Read from keyring via get_secure(), not raw config
+        # After migration to keyring, config stores "" but keyring has the key
+        from settings.config import get_secure
+        self.anthropic_key.setText(get_secure("anthropic_api_key", ""))
+        self.openai_key.setText(get_secure("openai_api_key", ""))
+        self.deepgram_key.setText(get_secure("deepgram_api_key", ""))
 
         # Populate plan-filtered model lists BEFORE selecting saved values
         self._populate_plan_models()
@@ -1197,6 +1210,10 @@ class SettingsWindow(QWidget):
                 print(f"[settings] Plan verified from server: {server_plan}")
 
         def on_error(msg: str):
+            # FIX: Don't log "Not authenticated" as error in BYOK mode
+            # This is expected when using local API keys instead of SaaS
+            if "Not authenticated" in msg:
+                return  # Silent - not an error, just not logged in
             print(f"[settings] Plan verification failed: {msg}")
 
         _ac.fetch_user_info(on_success=on_success, on_error=on_error)

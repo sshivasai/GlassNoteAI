@@ -6,41 +6,43 @@ FIXED: make_stylesheet now covers ALL child widgets so theme works globally.
 from settings import config
 
 DARK = {
-    "bg":           "#0e0e0f",
-    "bg2":          "#141416",
-    "bg3":          "#1e1e22",
-    "border":       "#2a2a2e",
-    "text":         "#e8e8e8",
-    "text2":        "#aaaaaa",
-    "text3":        "#666666",
-    "accent":       "#4f8ef7",
-    "accent_hover": "#3d7de8",
-    "danger":       "#e05252",
-    "success":      "#4caf78",
-    "warn":         "#f7c94f",
-    "code_bg":      "rgba(255,255,255,0.04)",
-    "code_border":  "rgba(255,255,255,0.08)",
-    "overlay_bg":   "rgba(12,12,14,0.96)",
-    "pill_bg":      "rgba(14,14,15,0.96)",
+    "bg":           "#090b10",
+    "bg2":          "#10141d",
+    "bg3":          "#171d29",
+    "border":       "#273041",
+    "text":         "#f4f7fb",
+    "text2":        "#aab6c8",
+    "text3":        "#738095",
+    "accent":       "#38bdf8",
+    "accent_hover": "#0ea5e9",
+    "danger":       "#fb7185",
+    "danger_dim":   "rgba(251,113,133,0.12)",
+    "success":      "#34d399",
+    "warn":         "#fbbf24",
+    "code_bg":      "rgba(56,189,248,0.08)",
+    "code_border":  "rgba(56,189,248,0.16)",
+    "overlay_bg":   "rgba(9,11,16,0.96)",
+    "pill_bg":      "rgba(9,11,16,0.96)",
 }
 
 LIGHT = {
-    "bg":           "#f5f5f7",
+    "bg":           "#f7f9fc",
     "bg2":          "#ffffff",
-    "bg3":          "#ebebed",
-    "border":       "#d0d0d5",
-    "text":         "#111111",
-    "text2":        "#555555",
-    "text3":        "#999999",
-    "accent":       "#2563eb",
-    "accent_hover": "#1d4ed8",
-    "danger":       "#dc2626",
-    "success":      "#16a34a",
-    "warn":         "#d97706",
-    "code_bg":      "rgba(0,0,0,0.04)",
-    "code_border":  "rgba(0,0,0,0.10)",
-    "overlay_bg":   "rgba(245,245,247,0.97)",
-    "pill_bg":      "rgba(245,245,247,0.97)",
+    "bg3":          "#eef3f8",
+    "border":       "#d8e0ea",
+    "text":         "#111827",
+    "text2":        "#526071",
+    "text3":        "#8995a6",
+    "accent":       "#0284c7",
+    "accent_hover": "#0369a1",
+    "danger":       "#e11d48",
+    "danger_dim":   "rgba(225,29,72,0.08)",
+    "success":      "#059669",
+    "warn":         "#b45309",
+    "code_bg":      "rgba(2,132,199,0.08)",
+    "code_border":  "rgba(2,132,199,0.16)",
+    "overlay_bg":   "rgba(247,249,252,0.97)",
+    "pill_bg":      "rgba(255,255,255,0.97)",
 }
 
 
@@ -130,9 +132,10 @@ QPushButton {{
     background: {t['bg3']};
     border: 1px solid {t['border']};
     border-radius: 8px;
-    padding: 10px 18px;
+    padding: 9px 16px;
     color: {t['text']};
     font-size: 13px;
+    font-weight: 500;
 }}
 
 QPushButton:hover {{
@@ -148,10 +151,10 @@ QPushButton:pressed {{
 QPushButton#primary {{
     background: {t['accent']};
     border: none;
-    color: white;
-    font-weight: 600;
+    color: #ffffff;
+    font-weight: 700;
     font-size: 14px;
-    padding: 12px 24px;
+    padding: 11px 22px;
     border-radius: 8px;
 }}
 
@@ -165,14 +168,15 @@ QPushButton#primary:pressed {{
 
 QPushButton#ghost {{
     background: transparent;
-    border: none;
-    color: {t['text3']};
-    font-size: 12px;
+    border: 1px solid {t['border']};
+    color: {t['text2']};
+    font-size: 13px;
 }}
 
 QPushButton#ghost:hover {{
-    color: {t['text2']};
-    background: transparent;
+    color: {t['accent']};
+    border-color: {t['accent']};
+    background: {t['code_bg']};
 }}
 
 QPushButton#danger {{
@@ -362,8 +366,7 @@ QTabWidget {{
 }}
 
 QTabWidget::pane {{
-    border: 1px solid {t['border']};
-    border-radius: 8px;
+    border: none;
     background: {t['bg2']};
     top: -1px;
 }}
@@ -373,16 +376,17 @@ QTabBar {{
 }}
 
 QTabBar::tab {{
-    background: {t['bg3']};
+    background: transparent;
     color: {t['text3']};
-    padding: 8px 16px;
+    padding: 10px 16px;
     border: none;
     font-size: 12px;
-    margin-right: 2px;
+    font-weight: 600;
+    margin-right: 1px;
 }}
 
 QTabBar::tab:selected {{
-    background: {t['bg2']};
+    background: {t['code_bg']};
     color: {t['text']};
     border-bottom: 2px solid {t['accent']};
 }}
@@ -450,14 +454,14 @@ def theme_btn_style(t: dict) -> str:
         QPushButton {{
             background: {t['bg3']};
             border: 1px solid {t['border']};
-            border-radius: 14px;
+            border-radius: 8px;
             color: {t['text2']};
             font-size: 13px;
-            padding: 3px 10px;
-            min-width: 56px;
+            padding: 0;
         }}
         QPushButton:hover {{
             border-color: {t['accent']};
             color: {t['accent']};
+            background: {t['code_bg']};
         }}
     """

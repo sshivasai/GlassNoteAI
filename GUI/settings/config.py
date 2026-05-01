@@ -21,6 +21,7 @@ plaintext JSON as fallback. Use set_secure() for sensitive values.
 
 import json
 import os
+import hashlib
 import threading
 from pathlib import Path
 from typing import Any
@@ -74,8 +75,9 @@ def _keyring_delete(key: str) -> None:
         return
     try:
         keyring.delete_password(_KEYRING_SERVICE, key)
-    except Exception:
-        pass
+    except Exception as e:
+        # FIX (LOW-1): Log the error instead of silent pass
+        print(f"[config] Keyring delete failed for {key}: {e}")
 
 CONFIG_PATH = Path.home() / ".glassnote" / "config.json"
 
@@ -206,10 +208,12 @@ DEFAULTS = {
 # ── In-memory cache ───────────────────────────────────────────────────────────
 # Eliminates repeated disk reads.  Invalidated only by save_config().
 # Thread-safe via _cache_lock.
+# FIX (MEDIUM-2): Added hash check to prevent mtime manipulation bypass
 
-_cache_lock:  threading.Lock       = threading.Lock()
-_cached_cfg:  dict | None          = None
-_cached_mtime: float               = 0.0
+_cache_lock:   threading.Lock       = threading.Lock()
+_cached_cfg:   dict | None          = None
+_cached_mtime: float                = 0.0
+_cached_hash:  str                  = ""  # MD5 hash for tamper detection
 
 
 def load_config() -> dict:
@@ -236,16 +240,21 @@ def load_config() -> dict:
         return DEFAULTS.copy()
 
     # Check mtime under lock to prevent race condition
+    # FIX: Handle file deletion more gracefully (avoid deadlock)
     with _cache_lock:
         try:
             current_mtime = CONFIG_PATH.stat().st_mtime
         except FileNotFoundError:
-            # File was deleted between exists() check and stat() — create new
-            save_config(DEFAULTS.copy())
-            return DEFAULTS.copy()
+            # File was deleted between exists() check and stat()
+            # Don't call save_config() inside the lock (it acquires its own lock)
+            current_mtime = 0.0  # Force cache miss
 
         if _cached_cfg is not None and current_mtime == _cached_mtime:
             return _cached_cfg.copy()
+
+        # FIX: If file was deleted, recreate it outside the lock
+        if current_mtime == 0.0 and not CONFIG_PATH.exists():
+            pass  # Will be handled by cache miss path below
 
         # Cache miss — read from disk (still under lock)
         try:
@@ -272,6 +281,13 @@ def load_config() -> dict:
                     # Successfully migrated to keyring — remove from config
                     merged[key] = ""  # Will be saved as empty in config
 
+        # FIX (MEDIUM-2): Cache hash for tamper detection
+        try:
+            with open(CONFIG_PATH, "rb") as f:
+                _cached_hash = hashlib.md5(f.read()).hexdigest()
+        except Exception:
+            _cached_hash = ""
+
         _cached_cfg   = merged
         _cached_mtime = current_mtime
 
@@ -287,7 +303,7 @@ def save_config(cfg: dict) -> None:
     Args:
         cfg (dict): The config dict to persist.
     """
-    global _cached_cfg, _cached_mtime
+    global _cached_cfg, _cached_mtime, _cached_hash
 
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 

@@ -20,27 +20,27 @@ from overlay.ticker import TranscriptTicker
 
 # ── Colour tokens ──────────────────────────────────────────────────────────────
 _C = {
-    "bg":            "rgba(8, 8, 12, 0.96)",
-    "border":        "rgba(255, 255, 255, 0.07)",
-    "divider":       "rgba(255, 255, 255, 0.06)",
-    "text_dim":      "#333340",
-    "text_muted":    "#5a5a70",
-    "text_normal":   "#8888aa",
-    "text_active":   "#d0ddff",
-    "accent":        "#5b8ff9",
-    "accent_bg":     "rgba(91, 143, 249, 0.13)",
-    "accent_border": "rgba(91, 143, 249, 0.32)",
-    "green":         "#42d68a",
-    "green_bg":      "rgba(66, 214, 138, 0.12)",
-    "green_border":  "rgba(66, 214, 138, 0.30)",
-    "red":           "#f06060",
-    "red_bg":        "rgba(240, 96, 96, 0.12)",
-    "amber":         "#f5b53f",
-    "timer":         "rgba(255,255,255,0.18)",
-    "dot_idle":      "#42d68a",
-    "dot_busy":      "#f5b53f",
-    "close_fg":      "#44445a",
-    "close_hover":   "#f06060",
+    "bg":            "rgba(9, 11, 16, 0.96)",
+    "border":        "rgba(148, 163, 184, 0.16)",
+    "divider":       "rgba(148, 163, 184, 0.14)",
+    "text_dim":      "#273041",
+    "text_muted":    "#738095",
+    "text_normal":   "#aab6c8",
+    "text_active":   "#f4f7fb",
+    "accent":        "#38bdf8",
+    "accent_bg":     "rgba(56, 189, 248, 0.12)",
+    "accent_border": "rgba(56, 189, 248, 0.34)",
+    "green":         "#34d399",
+    "green_bg":      "rgba(52, 211, 153, 0.12)",
+    "green_border":  "rgba(52, 211, 153, 0.30)",
+    "red":           "#fb7185",
+    "red_bg":        "rgba(251, 113, 133, 0.12)",
+    "amber":         "#fbbf24",
+    "timer":         "rgba(244,247,251,0.30)",
+    "dot_idle":      "#34d399",
+    "dot_busy":      "#fbbf24",
+    "close_fg":      "#738095",
+    "close_hover":   "#fb7185",
 }
 
 
@@ -70,7 +70,7 @@ def _btn_style(
             color: {_C['text_active']};
         }}
         QPushButton:pressed {{
-            background: rgba(91,143,249,0.22);
+            background: rgba(56,189,248,0.22);
         }}
     """
 
@@ -80,19 +80,19 @@ _STYLE_ACTIVE  = _btn_style(
     _C["text_active"], _C["accent_bg"], _C["accent_border"], "600"
 )
 _STYLE_RECORD  = _btn_style(
-    _C["red"], _C["red_bg"], "rgba(240,96,96,0.30)", "600"
+    _C["red"], _C["red_bg"], "rgba(251,113,133,0.30)", "600"
 )
 _STYLE_GREEN   = _btn_style(
     _C["green"], _C["green_bg"], _C["green_border"], "600"
 )
 _STYLE_SOLVING = _btn_style(
-    _C["amber"], "rgba(245,181,63,0.11)", "rgba(245,181,63,0.28)", "600"
+    _C["amber"], "rgba(251,191,36,0.12)", "rgba(251,191,36,0.30)", "600"
 )
 
 _STYLE_ICON_BTN = f"""
     QPushButton {{
         background: transparent;
-        border: 1px solid rgba(255,255,255,0.06);
+        border: 1px solid {_C['border']};
         color: {_C['text_muted']};
         font-size: 13px;
         padding: 2px 5px;
@@ -100,15 +100,15 @@ _STYLE_ICON_BTN = f"""
     }}
     QPushButton:hover {{
         color: {_C['text_normal']};
-        background: rgba(255,255,255,0.07);
-        border-color: rgba(255,255,255,0.12);
+        background: {_C['accent_bg']};
+        border-color: {_C['accent_border']};
     }}
 """
 
 _STYLE_CLOSE = f"""
     QPushButton {{
-        background: rgba(240,96,96,0.08);
-        border: 1px solid rgba(240,96,96,0.18);
+        background: rgba(251,113,133,0.08);
+        border: 1px solid rgba(251,113,133,0.20);
         color: {_C['close_fg']};
         font-size: 10px;
         font-weight: 700;
@@ -310,9 +310,9 @@ class PillWindow(QWidget):
 
     def _add_shadow(self):
         sh = QGraphicsDropShadowEffect(self)
-        sh.setBlurRadius(24)
-        sh.setOffset(0, 3)
-        sh.setColor(QColor(0, 0, 0, 130))
+        sh.setBlurRadius(28)
+        sh.setOffset(0, 6)
+        sh.setColor(QColor(0, 0, 0, 150))
         self.root.setGraphicsEffect(sh)
 
     # ── Ticker positioning ─────────────────────────────────────────────────────

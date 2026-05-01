@@ -19,6 +19,9 @@ class QueuedShot:
 
 
 class ScreenshotQueue:
+    # FIX (MEDIUM-3): Add max size to prevent unbounded memory growth
+    MAX_SIZE = 50  # ~25 MB at 500KB per screenshot
+
     def __init__(self, on_count_change: Optional[Callable[[int], None]] = None):
         self._queue: List[QueuedShot] = []
         self._lock = threading.Lock()
@@ -29,6 +32,12 @@ class ScreenshotQueue:
         with self._lock:
             label = f"Screenshot {len(self._queue) + 1}"
             self._queue.append(QueuedShot(b64_image=b64_image, label=label))
+
+            # FIX (MEDIUM-3): Auto-prune if exceeds limit (FIFO - drop oldest)
+            while len(self._queue) > self.MAX_SIZE:
+                dropped = self._queue.pop(0)
+                print(f"[queue] ⚠️  Dropped oldest screenshot (queue was {len(self._queue)+1}, max={self.MAX_SIZE})")
+
             count = len(self._queue)
 
         if self._on_count_change:

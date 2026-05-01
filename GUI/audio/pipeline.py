@@ -83,6 +83,7 @@ class AudioPipeline(QThread):
     transcribe_error      = pyqtSignal(str)
     level_update          = pyqtSignal(float)
     user_speaking_changed = pyqtSignal(bool)
+    stereo_mix_warning    = pyqtSignal()  # FIX: Stereo Mix not enabled warning
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -194,6 +195,7 @@ class AudioPipeline(QThread):
             source   = source,
             on_level = lambda lvl: self.level_update.emit(lvl),
             on_chunk = self._on_audio_chunk,
+            on_stereo_mix_warning = self._on_stereo_mix_warning,
         )
 
         # ── Start voice gate (ALWAYS on mic) ───────────────────────────────────
@@ -242,6 +244,18 @@ class AudioPipeline(QThread):
             return
         self._continuous_mode = False
         self._gated = True
+
+        # FIX (HIGH-4): Flush buffered smart dispatch before stopping
+        # Prevents question loss when user toggles interview mode off
+        # before the gate opens (e.g., user is still speaking when they click stop)
+        if self._pending_smart_dispatch:
+            pending = self._pending_smart_dispatch
+            self._pending_smart_dispatch = ""
+            print(f"[pipeline] ⚡ Flushing buffered smart dispatch on stop: '{pending[:50]}'")
+            self._last_sent_transcript = pending
+            self._processing_question  = True
+            self.transcript_ready.emit(pending)
+
         self._cleanup()
         self.recording_stopped.emit()
         print("[pipeline] Recording stopped")
@@ -430,6 +444,10 @@ class AudioPipeline(QThread):
           2. Not already processing
           3. Minimum 2 words (filters noise / single-word STT artifacts)
           4. Not a duplicate of last dispatch
+
+        FIX (HIGH-4): Pending smart dispatch is now flushed on stop_recording()
+        to prevent question loss when user toggles interview mode off before
+        the gate opens.
         """
         # Bug B fix: guard against firing when gate is closed (pipeline paused)
         # or when smart_answering is disabled — in that case the silence timer
@@ -620,6 +638,10 @@ class AudioPipeline(QThread):
 
     def _on_stt_error(self, message: str):
         self.transcribe_error.emit(message)
+
+    def _on_stereo_mix_warning(self):
+        """Called when system audio capture fails because Stereo Mix is not enabled."""
+        self.stereo_mix_warning.emit()
 
     def _get_silence_age(self) -> float:
         if self._last_speech_time == 0:

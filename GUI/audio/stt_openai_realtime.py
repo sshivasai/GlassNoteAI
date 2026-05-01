@@ -334,10 +334,12 @@ class OpenAIRealtimeSTT:
             )
             print(f"[openai_realtime] ✅ FINAL: '{text[:70]}'")
 
-            # NOTE: _on_partial intentionally NOT called here.
-            # speech_stopped already locked the pipeline silence clock.
-            # Calling _on_partial would reset _last_speech_time and add
-            # an extra silence_threshold delay before dispatch.
+            # FIX (HIGH-3): Update ticker with final committed text
+            # We still call _on_partial() to update the ticker display.
+            # The silence clock lock (set by speech_stopped) prevents
+            # _last_speech_time from being reset, so timing is preserved.
+            if self._on_partial:
+                self._on_partial(text)  # Ticker shows final text
 
             if self._on_smart_dispatch:
                 self._on_smart_dispatch(text)
