@@ -73,7 +73,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": False, "auto_capture": False, "prompt_caching": False,
                      "response_cache": True, "auto_model_routing": False, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": False,
+        "stt_providers": ["deepgram"],
         "badge_color": "#888888", "sort_order": 0,
     },
     "base": {
@@ -86,7 +86,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": False,
+        "stt_providers": ["deepgram"],
         "badge_color": "#4f8ef7", "sort_order": 1,
     },
     "unlimited": {
@@ -99,22 +99,10 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": True},
-        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": False,
+        "stt_providers": ["deepgram", "openai_realtime"],
         "badge_color": "#f59e0b", "sort_order": 2,
     },
-    "byok": {
-        "display_name": "BYOK", "tagline": "Use your own API keys forever",
-        "price_monthly": 0, "price_display": "Free", "price_type": "free",  # FIX: BYOK is now FREE
-        "stripe_price_id": None,  # FIX: No Stripe (was "price_byok_lifetime")
-        "sessions_per_month": 9999, "sessions_lifetime": True,  # FIX: Lifetime (was False)
-        "session_duration_minutes": 0,
-        "allowed_model_ids": sorted(_ALL_IDS),
-        "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
-                     "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
-                     "priority_support": True},
-        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": True,
-        "badge_color": "#10b981", "sort_order": 3,
-    },
+    # Note: BYOK is now a user account setting (byok_enabled), not a separate plan
 }
 
 

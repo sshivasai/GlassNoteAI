@@ -562,6 +562,71 @@ class AuthClient:
 
         threading.Thread(target=_do, daemon=True, name="auth-usage").start()
 
+    # ── Toggle BYOK ────────────────────────────────────────────────────────────
+
+    def toggle_byok(
+        self,
+        enabled: bool,
+        on_success: Callable[[dict], None],
+        on_error:   Callable[[str], None],
+    ):
+        """
+        Enable or disable BYOK (Bring Your Own Keys) for the current user.
+
+        Returns new JWT token with updated byok_enabled claim.
+
+        Args:
+            enabled: True to enable BYOK, False to disable.
+            on_success: Called with response dict containing new access_token.
+            on_error: Called with error message.
+        """
+        if not self.is_authenticated:
+            on_error("Not authenticated")
+            return
+
+        def _do():
+            try:
+                with httpx.Client(
+                    http2=True,
+                    timeout=httpx.Timeout(10.0, connect=5.0),
+                ) as client:
+                    response = client.post(
+                        f"{self.api_url}/api/auth/toggle-byok",
+                        json={"enabled": enabled},
+                        headers={"Authorization": f"Bearer {self._token}"},
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+
+                    # Store new JWT token with updated byok_enabled claim
+                    new_token = data.get("access_token", "")
+                    if new_token:
+                        self._token = new_token
+                        _keyring_save(new_token)
+
+                        # Update config
+                        try:
+                            from settings import config
+                            cfg = config.load_config()
+                            cfg["glassnote_byok_enabled"] = enabled
+                            cfg["glassnote_api_token"] = new_token
+                            config.save_config(cfg)
+                        except Exception:
+                            pass
+
+                    on_success(data)
+
+            except httpx.HTTPStatusError as e:
+                try:
+                    detail = e.response.json().get("detail", str(e))
+                except Exception:
+                    detail = str(e)
+                on_error(f"Failed to toggle BYOK: {detail}")
+            except Exception as e:
+                on_error(f"Network error: {e}")
+
+        threading.Thread(target=_do, daemon=True, name="auth-toggle-byok").start()
+
     # ── Logout ─────────────────────────────────────────────────────────────────
 
     def logout(self):

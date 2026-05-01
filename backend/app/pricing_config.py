@@ -9,7 +9,9 @@ Plans:
     free       — $0, 5 lifetime sessions, 30 min each, basic models only
     base       — $29/mo, 15 sessions/mo, 1 hour each, mid-tier models
     unlimited  — $49/mo, unlimited sessions, unlimited duration, all models
-    byok       — $0 (FREE), unlimited sessions, all models, user's own API keys
+
+Note: BYOK (Bring Your Own Keys) is now a user account setting (byok_enabled flag),
+      not a separate plan. Any user can enable BYOK regardless of their plan.
 """
 
 from datetime import datetime, timezone
@@ -95,7 +97,6 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   False,
         "badge_color":    "#888888",
         "sort_order":     0,
     },
@@ -120,7 +121,6 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   False,
         "badge_color":    "#4f8ef7",
         "sort_order":     1,
     },
@@ -145,34 +145,8 @@ PLANS = {
             "priority_support":   True,
         },
         "stt_providers":  _ALL_STT,
-        "byok_allowed":   False,
         "badge_color":    "#f59e0b",
         "sort_order":     2,
-    },
-    "byok": {
-        "display_name":             "BYOK",
-        "tagline":                  "Use your own API keys forever",
-        "price_monthly":            0,          # FIX: BYOK is now FREE (was $99)
-        "price_display":            "Free",     # FIX: Show "Free" not "$99 forever"
-        "price_type":               "free",     # FIX: Changed from "one_time" to "free"
-        "stripe_price_id":          None,       # FIX: No Stripe (was "price_byok_lifetime")
-        "sessions_per_month":       9999,
-        "sessions_lifetime":        True,       # FIX: Changed to True (lifetime like free plan)
-        "session_duration_minutes": 0,
-        "allowed_model_ids":        _ALL_MODEL_IDS,
-        "features": {
-            "smart_answering":    True,
-            "auto_capture":       True,
-            "prompt_caching":     True,
-            "response_cache":     True,
-            "auto_model_routing": True,
-            "http2_pooling":      True,
-            "priority_support":   True,
-        },
-        "stt_providers":  _ALL_STT,
-        "byok_allowed":   True,
-        "badge_color":    "#10b981",
-        "sort_order":     3,
     },
 }
 

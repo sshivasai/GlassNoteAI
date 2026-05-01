@@ -977,32 +977,33 @@ class SessionSetupWindow(QWidget):
                 )
                 return
 
-            plan_data   = pricing.get_plan(server_plan)
-            has_api_url = bool(cfg.get("glassnote_api_url", "").strip())
-            is_saas     = has_api_url and not plan_data["byok_allowed"]
+            # Check if BYOK is enabled (account setting, not plan-based)
+            byok_enabled = cfg.get("glassnote_byok_enabled", False)
+            has_api_url  = bool(cfg.get("glassnote_api_url", "").strip())
+            is_saas      = has_api_url and not byok_enabled
 
             if not is_saas:
                 # BYOK mode validation
-                if not plan_data["byok_allowed"]:
+                if not byok_enabled:
                     self._sig_verify_error.emit(
-                        f"BYOK mode requires the BYOK plan "
-                        f"({pricing.PLANS['byok']['price_display']}). "
-                        "Upgrade in Settings or use a Cloud plan."
+                        "BYOK is not enabled. Enable it in Settings to use your own API keys, "
+                        "or sign in to use the platform proxy."
                     )
                     return
                 if provider == "anthropic" and not cfg.get("anthropic_api_key", "").strip():
                     self._sig_verify_error.emit(
-                        "Claude requires an Anthropic API key in BYOK mode. "
-                        "Add one in Settings."
+                        "Claude requires an Anthropic API key when BYOK is enabled. "
+                        "Add one in Settings or disable BYOK."
                     )
                     return
                 if provider == "openai" and not cfg.get("openai_api_key", "").strip():
                     self._sig_verify_error.emit(
-                        "OpenAI models require an OpenAI API key in BYOK mode. "
-                        "Add one in Settings."
+                        "OpenAI models require an OpenAI API key when BYOK is enabled. "
+                        "Add one in Settings or disable BYOK."
                     )
                     return
-                # BYOK — no backend session registration needed
+                # BYOK enabled — no backend session registration needed
+                print(f"[session] BYOK mode — skipping backend registration")
                 self._sig_session_ok.emit("")
                 return
 

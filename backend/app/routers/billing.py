@@ -41,7 +41,7 @@ _ONE_TIME_PLANS  = get_one_time_plans()
 # ── Request models ────────────────────────────────────────────────────────────
 
 class CheckoutRequest(BaseModel):
-    plan: str  # "starter", "pro", "unlimited", "byok"
+    plan: str  # "base", "unlimited" (free doesn't require payment; BYOK is now a toggle)
     success_url: str = "https://glassnote.ai/billing/success"
     cancel_url: str  = "https://glassnote.ai/billing/cancel"
 
@@ -78,12 +78,11 @@ async def create_checkout(
         user_id = user["sub"]
         email   = user.get("email", "")
 
-        # FIX: Prevent free/BYOK plans from accessing checkout
-        # Both are now free and don't require Stripe
-        if req.plan in ("free", "byok"):
+        # Prevent free plan from accessing checkout (BYOK is now a feature, not a plan)
+        if req.plan == "free":
             raise HTTPException(
                 status_code=400,
-                detail=f"Plan '{req.plan}' is free and does not require payment"
+                detail="Free plan does not require payment. Upgrade to Base or Unlimited."
             )
 
         # Get user from DB for existing Stripe customer ID
@@ -229,9 +228,9 @@ async def stripe_webhook(request: Request):
                 customer = data.get("customer", "")
 
                 if user_id:
-                    # Compute expiry: BYOK = lifetime (no expiry), others = 30 days
+                    # Compute expiry: free = no expiry, paid plans = 30 days
                     expires_at = None
-                    if plan not in ("byok", "free"):
+                    if plan != "free":
                         expires_at = datetime.now(timezone.utc) + timedelta(days=30)
 
                     await db.execute(

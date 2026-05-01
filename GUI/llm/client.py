@@ -719,24 +719,18 @@ class LLMClient:
         """
         Check if the user should route through GlassNote SaaS proxy.
 
-        BYOK users have their own API keys and must bypass the proxy —
-        routing them through would bill the platform instead of them.
+        When BYOK is enabled, users have their own API keys and must bypass
+        the proxy — routing them through would bill the platform instead.
 
         Returns:
             tuple: (proxy_url, proxy_token) or ("", "") if direct mode.
         """
-        # TTFT-OPT: module-level import, avoid repeated disk reads
-        # Uses module-level _pricing_config instead of importing on every call.
-        try:
-            if _PRICING_CONFIG_AVAILABLE and _pricing_config is not None:
-                user_plan = cfg.get("glassnote_user_plan", "free").strip()
-                plan_data = _pricing_config.get_plan(user_plan)
-                if plan_data.get("byok_allowed", False):
-                    # BYOK plan — user pays their own API providers directly
-                    print(f"[llm] BYOK mode — bypassing proxy (plan={user_plan})")
-                    return "", ""
-        except Exception:
-            pass  # pricing_config unavailable — fall through to normal check
+        # Check if BYOK is enabled (account setting, not plan-based)
+        byok_enabled = cfg.get("glassnote_byok_enabled", False)
+        if byok_enabled:
+            # BYOK enabled — user pays their own API providers directly
+            print("[llm] BYOK mode — bypassing proxy")
+            return "", ""
 
         proxy_url   = cfg.get("glassnote_api_url", "").strip()
         proxy_token = cfg.get("glassnote_api_token", "").strip()

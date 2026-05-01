@@ -101,6 +101,7 @@ class UserResponse(BaseModel):
     first_name:         str = ""
     last_name:          str = ""
     plan:               str
+    byok_enabled:       bool = False
     is_verified:        bool
     device_bound:       bool
     auth_provider:      str = "email"
@@ -215,8 +216,8 @@ async def _expire_plan_if_needed(user: User, db: AsyncSession) -> bool:
 
     Returns True if the plan was downgraded, False otherwise.
     """
-    if user.plan == "free" or user.plan == "byok":
-        return False  # free is permanent; byok is a one-time purchase with no expiry
+    if user.plan == "free":
+        return False  # free plan has no expiry
     if not user.plan_expires_at:
         return False  # no expiry set — admin-granted or legacy row
     now = datetime.now(timezone.utc)
@@ -318,8 +319,13 @@ async def verify_otp(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
     if req.device_id and not user.bound_device_id:
         user.bound_device_id = req.device_id
 
-    token = create_access_token(user_id=str(user.id), email=user.email, plan=user.plan)
-    print(f"[auth] ✓ Email verified: {user.email} (plan={user.plan})")
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        plan=user.plan,
+        byok_enabled=user.byok_enabled
+    )
+    print(f"[auth] ✓ Email verified: {user.email} (plan={user.plan}, byok={user.byok_enabled})")
     return _make_token_response(user, token)
 
 # ── Resend OTP ────────────────────────────────────────────────────────────────
@@ -378,8 +384,13 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     # Expire plan if needed before issuing token
     await _expire_plan_if_needed(user, db)
 
-    token = create_access_token(user_id=str(user.id), email=user.email, plan=user.plan)
-    print(f"[auth] Login: {user.email} (plan={user.plan})")
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        plan=user.plan,
+        byok_enabled=user.byok_enabled
+    )
+    print(f"[auth] Login: {user.email} (plan={user.plan}, byok={user.byok_enabled})")
     return _make_token_response(user, token)
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
@@ -445,7 +456,12 @@ async def google_auth(req: GoogleAuthRequest, db: AsyncSession = Depends(get_db)
         await _get_or_create_quota(db, str(user.id), "free")
         print(f"[auth] New Google user: {email}")
 
-    token = create_access_token(user_id=str(user.id), email=user.email, plan=user.plan)
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        plan=user.plan,
+        byok_enabled=user.byok_enabled
+    )
     return _make_token_response(user, token)
 
 
@@ -568,7 +584,12 @@ async def google_callback(req: GoogleCallbackRequest, db: AsyncSession = Depends
         await _get_or_create_quota(db, str(user.id), "free")
         print(f"[auth] New Google user (desktop): {email}")
 
-    token = create_access_token(user_id=str(user.id), email=user.email, plan=user.plan)
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        plan=user.plan,
+        byok_enabled=user.byok_enabled
+    )
     return _make_token_response(user, token)
 
 # ── Refresh ───────────────────────────────────────────────────────────────────
@@ -579,7 +600,8 @@ async def refresh_token(user: dict = Depends(get_current_user), db: AsyncSession
     db_user = result.scalar_one_or_none()
     plan  = db_user.plan  if db_user else user.get("plan", "free")
     email = db_user.email if db_user else user.get("email", "")
-    token = create_access_token(user_id=user["sub"], email=email, plan=plan)
+    byok_enabled = db_user.byok_enabled if db_user else user.get("byok_enabled", False)
+    token = create_access_token(user_id=user["sub"], email=email, plan=plan, byok_enabled=byok_enabled)
     if db_user:
         return _make_token_response(db_user, token)
     return TokenResponse(access_token=token, plan=plan, email=email)
@@ -605,13 +627,15 @@ async def get_me(user: dict = Depends(get_current_user), db: AsyncSession = Depe
     plan_cfg   = get_plan(plan)
     used       = quota.sessions_used if quota else 0
     limit      = plan_cfg["sessions_per_month"]
-    # -1 = unlimited for plans with limit >= 9999 (unlimited / byok)
+    # -1 = unlimited for plans with limit >= 9999 (unlimited plan)
     remaining  = -1 if limit >= 9999 else max(0, limit - used)
 
     return UserResponse(
         id=user["sub"], email=db_user.email,
         first_name=db_user.first_name or "", last_name=db_user.last_name or "",
-        plan=plan, is_verified=db_user.is_verified,
+        plan=plan,
+        byok_enabled=db_user.byok_enabled,
+        is_verified=db_user.is_verified,
         device_bound=bool(db_user.bound_device_id),
         auth_provider=db_user.auth_provider or "email",
         sessions_used=used,
@@ -641,107 +665,62 @@ async def update_profile(
     return {"status": "ok", "first_name": db_user.first_name, "last_name": db_user.last_name}
 
 
-# ── Switch Plan (Free ↔ BYOK) ─────────────────────────────────────────────────
+# ── Toggle BYOK ───────────────────────────────────────────────────────────────
 
-class SwitchPlanRequest(BaseModel):
-    plan: str  # "free" or "byok"
-
-    @field_validator("plan")
-    @classmethod
-    def validate_plan(cls, v: str) -> str:
-        if v not in ("free", "byok"):
-            raise ValueError("Can only switch between 'free' and 'byok' plans")
-        return v
+class ToggleBYOKRequest(BaseModel):
+    enabled: bool
 
 
-@router.post("/switch-plan")
-async def switch_plan(
-    req: SwitchPlanRequest,
+@router.post("/toggle-byok")
+async def toggle_byok(
+    req: ToggleBYOKRequest,
     user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Switch plans with proper rules and quota handling.
+    Enable or disable BYOK (Bring Your Own Keys) for the current user.
 
-    RULES:
-    ------
-    1. Free ↔ BYOK: Allowed (both free, share same "lifetime" quota)
-    2. Any plan → BYOK: Allowed (BYOK is free, no payment needed)
-    3. Free → Base/Unlimited: Blocked (requires payment via billing page)
-    4. Base/Unlimited → Free/BYOK: Blocked (cancel subscription via billing first)
+    BYOK is now a user account setting, not a plan. Any user on any plan
+    (Free, Base, Unlimited) can toggle BYOK to use their own API keys
+    instead of the platform's proxy.
 
-    LIFETIME QUOTA:
-    ---------------
-    Free and BYOK both have `sessions_lifetime=True`, so they share the SAME
-    quota row (period="lifetime"). This means:
-    - User starts with 5 lifetime sessions on Free
-    - Switches to BYOK → still has same 5 sessions used (shared quota)
-    - Switches back to Free → same quota persists
-    - This is CORRECT behavior: 5 lifetime sessions PER ACCOUNT, not per plan
+    When BYOK is enabled:
+    - User must configure their own API keys in the GUI Settings
+    - /stt-credentials endpoint returns 403
+    - LLM client bypasses the proxy and uses user's keys directly
 
-    PAID PLAN QUOTA:
-    ----------------
-    Base/Unlimited have monthly quotas (period="2026-04"), separate from lifetime.
-    When switching from paid → BYOK, the old monthly quota remains but inactive.
+    Plan limits still apply (Free users with BYOK enabled still get
+    basic models only, unless they upgrade to Base/Unlimited).
+
+    Returns:
+        New JWT token with updated byok_enabled claim, plus confirmation.
     """
-    user_id = user["sub"]
-    result  = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user["sub"]))
     db_user = result.scalar_one_or_none()
     if not db_user:
         raise HTTPException(404, "User not found")
 
-    current_plan = db_user.plan
-    target_plan = req.plan
+    # Update BYOK status
+    db_user.byok_enabled = req.enabled
+    await db.commit()
 
-    # Don't allow switching to the same plan
-    if current_plan == target_plan:
-        raise HTTPException(400, f"You are already on the {target_plan} plan")
+    # Issue new JWT with updated byok_enabled claim
+    new_token = create_access_token(
+        user_id=str(db_user.id),
+        email=db_user.email,
+        plan=db_user.plan,
+        byok_enabled=req.enabled
+    )
 
-    # Rule: Any plan → BYOK is allowed (BYOK is free)
-    if target_plan == "byok":
-        db_user.plan = target_plan
-        await db.commit()
-        return {
-            "message": f"Successfully switched to BYOK plan",
-            "new_plan": target_plan
-        }
+    action = "enabled" if req.enabled else "disabled"
+    print(f"[auth] BYOK {action}: {db_user.email} (plan={db_user.plan})")
 
-    # Rule: Free ↔ BYOK is allowed (both free, share lifetime quota)
-    if current_plan in ("free", "byok") and target_plan in ("free", "byok"):
-        db_user.plan = target_plan
-        await db.commit()
-        return {
-            "message": f"Successfully switched to {target_plan} plan",
-            "new_plan": target_plan
-        }
-
-    # Rule: Free → Base/Unlimited blocked (requires payment)
-    if current_plan == "free" and target_plan in ("base", "unlimited"):
-        raise HTTPException(
-            400,
-            f"Upgrading from Free to {target_plan} requires payment. "
-            "Please visit the billing page to subscribe."
-        )
-
-    # Rule: BYOK → Free is allowed (covered by free ↔ byok above)
-
-    # Rule: Base/Unlimited → Free/BYOK blocked (cancel subscription first)
-    if current_plan in ("base", "unlimited") and target_plan in ("free", "byok"):
-        raise HTTPException(
-            400,
-            f"To downgrade from {current_plan} to {target_plan}, please cancel "
-            "your subscription via the billing page first."
-        )
-
-    # Rule: Base ↔ Unlimited (requires billing page)
-    if current_plan in ("base", "unlimited") and target_plan in ("base", "unlimited"):
-        raise HTTPException(
-            400,
-            "Please use the billing page to change between paid plans."
-        )
-
-    # Fallback (should never reach here)
-    raise HTTPException(400, "Invalid plan switch")
+    return {
+        "access_token": new_token,
+        "byok_enabled": req.enabled,
+        "message": f"BYOK {action} successfully. "
+                   f"{'Configure your API keys in Settings to use BYOK.' if req.enabled else 'You are now using the platform proxy.'}"
+    }
 
 
 # ── Delete Account ────────────────────────────────────────────────────────────

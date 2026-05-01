@@ -709,13 +709,13 @@ class AudioPipeline(QThread):
         # This means we never block the pipeline thread on a synchronous HTTP call.
         effective_cfg = self._prefetched_cfg if self._prefetched_cfg is not None else cfg
 
-        plan    = effective_cfg.get("glassnote_user_plan", "free").strip() or "free"
-        is_byok = (plan == "byok")
+        # Check if BYOK is enabled (account setting, not plan-based)
+        byok_enabled = effective_cfg.get("glassnote_byok_enabled", False)
 
         deepgram_key = effective_cfg.get("deepgram_api_key", "").strip()
         openai_key   = effective_cfg.get("openai_api_key",   "").strip()
 
-        if not is_byok and not deepgram_key and not openai_key:
+        if not byok_enabled and not deepgram_key and not openai_key:
             # Pre-fetch didn't run or failed — fall back to synchronous fetch
             # as a last resort (keeps backward compatibility).
             try:
@@ -732,14 +732,14 @@ class AudioPipeline(QThread):
                     data         = r.json()
                     deepgram_key = data.get("deepgram_key", "") or deepgram_key
                     openai_key   = data.get("openai_key",   "") or openai_key
-                    print(f"[pipeline] STT keys fetched from backend (fallback, plan={plan})")
+                    print(f"[pipeline] STT keys fetched from backend (fallback, byok={byok_enabled})")
                 else:
                     print(f"[pipeline] STT credentials fetch failed ({r.status_code}) — using local keys")
             except Exception as e:
                 print(f"[pipeline] STT credentials fetch error: {e} — using local keys")
         else:
             if deepgram_key or openai_key:
-                print(f"[pipeline] STT keys from pre-fetched config (plan={plan})")
+                print(f"[pipeline] STT keys from pre-fetched config (byok={byok_enabled})")
 
         # ── Deepgram ───────────────────────────────────────────────────────────
         if provider == "deepgram":
