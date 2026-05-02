@@ -19,7 +19,8 @@ export default function DashboardOverview() {
     ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
   const expiryWarning = daysLeft !== null && daysLeft <= 5;
-  const planLabel = user.plan === "byok" ? "BYOK (Lifetime)" : user.plan.charAt(0).toUpperCase() + user.plan.slice(1);
+  const planLabel = user.plan.charAt(0).toUpperCase() + user.plan.slice(1) +
+                    (user.byok_enabled ? " (BYOK)" : "");
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -114,8 +115,8 @@ export default function DashboardOverview() {
           <p className="text-xs text-[var(--text-muted)] mb-1 uppercase tracking-wider flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Plan Expires
           </p>
-          {user.plan === "byok" ? (
-            <p className="text-xl font-bold text-emerald-400">Lifetime ♾</p>
+          {user.plan === "free" ? (
+            <p className="text-xl font-bold text-[var(--text-muted)]">No expiry</p>
           ) : expiresAt ? (
             <>
               <p className={`text-xl font-bold ${ expiryWarning ? "text-red-400" : "text-white" }`}>

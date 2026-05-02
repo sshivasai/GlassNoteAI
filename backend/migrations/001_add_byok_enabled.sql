@@ -1,27 +1,47 @@
--- Migration: Add byok_enabled column to users table
+-- Migration: Transform BYOK from plan to feature toggle
 -- Date: 2026-05-01
--- Description: Convert BYOK from a plan to a feature flag
+-- Description: Add byok_enabled column and migrate existing BYOK users
 
--- Step 1: Add the byok_enabled column (default False)
-ALTER TABLE users ADD COLUMN IF NOT EXISTS byok_enabled BOOLEAN DEFAULT FALSE;
+BEGIN;
 
--- Step 2: Migrate existing BYOK plan users
--- Set byok_enabled=TRUE for users currently on the BYOK plan
+-- Step 1: Add byok_enabled column if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'byok_enabled'
+    ) THEN
+        ALTER TABLE users ADD COLUMN byok_enabled BOOLEAN DEFAULT FALSE NOT NULL;
+        RAISE NOTICE 'Added byok_enabled column';
+    ELSE
+        RAISE NOTICE 'byok_enabled column already exists';
+    END IF;
+END
+$$;
+
+-- Step 2: Migrate existing BYOK users (preserve their access)
 UPDATE users
 SET byok_enabled = TRUE
 WHERE plan = 'byok';
 
--- Step 3: Update BYOK users to free plan (or keep their previous paid plan if they had one)
--- Since BYOK was free and shares lifetime quota with free, migrate them to free
+-- Step 3: Move BYOK users to Free plan (they share same lifetime quota)
 UPDATE users
 SET plan = 'free'
 WHERE plan = 'byok';
 
--- Note: After this migration:
--- - All former BYOK users are now on 'free' plan with byok_enabled=TRUE
--- - They retain their lifetime session quota (shared between free and BYOK)
--- - New users can enable BYOK on any plan via the toggle-byok endpoint
+-- Verification query
+SELECT
+    plan,
+    byok_enabled,
+    COUNT(*) as user_count
+FROM users
+GROUP BY plan, byok_enabled
+ORDER BY plan;
 
--- Rollback (if needed):
+COMMIT;
+
+-- To rollback this migration:
+-- BEGIN;
 -- UPDATE users SET plan = 'byok' WHERE byok_enabled = TRUE AND plan = 'free';
 -- ALTER TABLE users DROP COLUMN IF EXISTS byok_enabled;
+-- COMMIT;

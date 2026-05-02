@@ -64,12 +64,13 @@ def create_access_token(
     user_id: str,
     email: str,
     plan: str,
+    byok_enabled: bool = False,
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
     Create a signed JWT access token.
 
-    The token contains the user's ID, email, and plan in the payload.
+    The token contains the user's ID, email, plan, and BYOK status in the payload.
     This avoids a database lookup on every proxied request (critical
     for keeping proxy latency <1ms).
 
@@ -77,6 +78,7 @@ def create_access_token(
         user_id: User UUID as string.
         email: User email.
         plan: User's subscription plan.
+        byok_enabled: Whether user has BYOK enabled.
         expires_delta: Custom expiry (defaults to settings.jwt_expire_minutes).
 
     Returns:
@@ -90,6 +92,7 @@ def create_access_token(
         "sub":   user_id,
         "email": email,
         "plan":  plan,
+        "byok_enabled": byok_enabled,
         "exp":   expire,
         "iat":   datetime.now(timezone.utc),
     }
@@ -147,7 +150,7 @@ async def get_current_user(
     In debug mode, allows unauthenticated access for local testing.
 
     Returns:
-        dict: User info with 'sub' (user_id), 'email', 'plan'.
+        dict: User info with 'sub' (user_id), 'email', 'plan', 'byok_enabled'.
 
     Raises:
         HTTPException: 401 if token is missing or invalid.
@@ -159,7 +162,8 @@ async def get_current_user(
         return {
             "sub": "local-dev-user",
             "email": "dev@localhost",
-            "plan": "pro"
+            "plan": "unlimited",
+            "byok_enabled": False
         }
 
     return decode_access_token(credentials.credentials)

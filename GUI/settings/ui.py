@@ -194,8 +194,26 @@ class SettingsWindow(QWidget):
 
         layout.addWidget(_sep())
 
-        # BYOK API key fields
-        self._byok_section_label = _section("Your API Keys  (BYOK Plan)")
+        # BYOK Toggle (available to all users)
+        byok_toggle_label = _section("Bring Your Own Keys (BYOK)")
+        layout.addWidget(byok_toggle_label)
+
+        self._byok_toggle = QCheckBox("Use my own API keys instead of the platform proxy")
+        self._byok_toggle.setStyleSheet("font-size: 11pt; padding: 4px;")
+        self._byok_toggle.toggled.connect(self._on_byok_toggle)
+        layout.addWidget(self._byok_toggle)
+
+        byok_info = _note(
+            "Enable BYOK to use your own Anthropic/OpenAI/Deepgram API keys. "
+            "You'll pay providers directly at their rates. Session limits and plan "
+            "features remain unchanged based on your subscription tier."
+        )
+        layout.addWidget(byok_info)
+
+        layout.addWidget(_sep())
+
+        # BYOK API key fields (shown when BYOK is enabled)
+        self._byok_section_label = _section("Your API Keys")
         layout.addWidget(self._byok_section_label)
         self._byok_desc = _note(
             "Bring your own API keys for unlimited direct access. "
@@ -247,14 +265,6 @@ class SettingsWindow(QWidget):
             self._byok_sep2,
             self._byok_dg_label, self.deepgram_key, self._byok_dg_note,
         ]
-
-        byok_price = pricing.PLANS["byok"]["price_display"]
-        self._byok_upsell = _note(
-            f"\U0001f512  API key fields are available on the BYOK plan ({byok_price}).\n"
-            "Your AI calls are routed through GlassNote's managed proxy. No keys needed!\n\n"
-            "Want to use your own keys? Upgrade to BYOK at glassnote.ai."
-        )
-        layout.addWidget(self._byok_upsell)
 
         layout.addStretch()
         return w
@@ -968,6 +978,9 @@ class SettingsWindow(QWidget):
         # Verify plan from server in background
         self._verify_plan_from_server_v2()
 
+        # BYOK Toggle - load from config
+        self._byok_toggle.setChecked(c.get("glassnote_byok_enabled", False))
+
         # API Keys - FIX: Read from keyring via get_secure(), not raw config
         # After migration to keyring, config stores "" but keyring has the key
         from settings.config import get_secure
@@ -1071,7 +1084,10 @@ class SettingsWindow(QWidget):
         ]
 
         updates = {
-            # API keys (only saved if on BYOK plan)
+            # BYOK toggle (saved in config, not keyring)
+            "glassnote_byok_enabled": self._byok_toggle.isChecked(),
+
+            # API keys (saved in keyring via set_secure, shown when BYOK enabled)
             "anthropic_api_key":     self.anthropic_key.text().strip(),
             "openai_api_key":        self.openai_key.text().strip(),
             "deepgram_api_key":      self.deepgram_key.text().strip(),
@@ -1131,16 +1147,87 @@ class SettingsWindow(QWidget):
         self._update_region_label()
         self._apply_plan_restrictions()
 
+    # ── BYOK Toggle Handler ───────────────────────────────────────────────────
+
+    def _on_byok_toggle(self, checked: bool):
+        """
+        Handle BYOK toggle - calls backend to enable/disable BYOK.
+
+        When BYOK is enabled:
+        - API key fields become visible
+        - User must configure their own keys
+        - /stt-credentials endpoint returns 403
+        - LLM client bypasses proxy
+
+        When BYOK is disabled:
+        - API key fields hidden
+        - Platform proxy is used
+        - Backend provides STT credentials
+        """
+        from api.auth_client import auth_client
+        from PyQt6.QtWidgets import QMessageBox
+
+        # Check if user is logged in
+        if not auth_client.is_authenticated:
+            QMessageBox.warning(
+                self,
+                "Not Logged In",
+                "You must be logged in to toggle BYOK. Please sign in first."
+            )
+            # Revert toggle
+            self._byok_toggle.blockSignals(True)
+            self._byok_toggle.setChecked(not checked)
+            self._byok_toggle.blockSignals(False)
+            return
+
+        # Disable toggle while processing
+        self._byok_toggle.setEnabled(False)
+
+        def on_success(data):
+            """Handle successful BYOK toggle."""
+            # Update config
+            cfg = config.load_config()
+            cfg["glassnote_byok_enabled"] = checked
+            config.save_config(cfg)
+
+            # Show/hide API key fields
+            self._apply_plan_restrictions()
+
+            action = "enabled" if checked else "disabled"
+            QMessageBox.information(
+                self,
+                "BYOK Updated",
+                f"BYOK {action} successfully!\n\n"
+                f"{data.get('message', '')}"
+            )
+            self._byok_toggle.setEnabled(True)
+
+        def on_error(error_msg):
+            """Handle BYOK toggle error."""
+            QMessageBox.warning(
+                self,
+                "BYOK Toggle Failed",
+                f"Failed to toggle BYOK:\n\n{error_msg}"
+            )
+            # Revert toggle
+            self._byok_toggle.blockSignals(True)
+            self._byok_toggle.setChecked(not checked)
+            self._byok_toggle.blockSignals(False)
+            self._byok_toggle.setEnabled(True)
+
+        # Call backend API
+        auth_client.toggle_byok(checked, on_success, on_error)
+
     # ── Plan-based UI restrictions ─────────────────────────────────────────────
 
     def _apply_plan_restrictions(self):
-        """Show/hide UI based on user's plan from pricing_config."""
-        is_byok = (self._user_plan == "byok")
+        """Show/hide UI based on user's plan and BYOK toggle state."""
+        # BYOK is now a toggle, not a plan - check config setting
+        byok_enabled = self.cfg.get("glassnote_byok_enabled", False)
 
-        # BYOK key fields
+        # Show/hide BYOK key fields based on toggle state (not plan)
         for widget in self._byok_widgets:
-            widget.setVisible(is_byok)
-        self._byok_upsell.setVisible(not is_byok)
+            widget.setVisible(byok_enabled)
 
         # Gate plan features
         if hasattr(self, "auto_answer"):

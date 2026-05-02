@@ -877,13 +877,11 @@ async def get_stt_credentials(
     Raises:
         403 if the user is on the BYOK plan (they must use their own keys).
     """
-    plan_id = user.get("plan", "free")
-    plan_cfg = get_plan(plan_id)
-
-    if plan_cfg.get("byok_allowed", False):
+    # Check if user has BYOK enabled (user account setting, not plan-based)
+    if user.get("byok_enabled", False):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="BYOK users must configure their own API keys in Settings.",
+            detail="BYOK is enabled on your account. Please configure your own API keys in Settings.",
         )
 
     settings = get_settings()

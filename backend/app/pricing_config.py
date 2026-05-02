@@ -10,10 +10,8 @@ Plans:
     base       — $29/mo, 15 sessions/mo, 1 hour each, mid-tier models
     unlimited  — $49/mo, unlimited sessions, unlimited duration, all models
 
-BYOK (Bring Your Own Keys):
-    BYOK is now a FEATURE FLAG, not a plan. Any user can enable it on their account
-    via the toggle-byok endpoint. When enabled, users provide their own API keys
-    and get unlimited sessions regardless of their plan.
+Note: BYOK (Bring Your Own Keys) is now a user account setting (byok_enabled flag),
+      not a separate plan. Any user can enable BYOK regardless of their plan.
 """
 
 from datetime import datetime, timezone
@@ -99,7 +97,6 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#888888",
         "sort_order":     0,
     },
@@ -124,7 +121,6 @@ PLANS = {
             "priority_support":   False,
         },
         "stt_providers":  _BASIC_STT,
-        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#4f8ef7",
         "sort_order":     1,
     },
@@ -149,12 +145,9 @@ PLANS = {
             "priority_support":   True,
         },
         "stt_providers":  _ALL_STT,
-        "byok_allowed":   True,  # All plans now support BYOK as a feature
         "badge_color":    "#f59e0b",
         "sort_order":     2,
     },
-    # BYOK removed from plans - it's now a feature flag (User.byok_enabled)
-    # All plans support BYOK when the feature is enabled on the account
 }
 
 
@@ -190,8 +183,7 @@ def get_one_time_plans() -> set:
     """
     Return plan IDs that require one-time payment.
 
-    BYOK removed: It's now a feature flag, not a plan.
-    This returns empty set unless new one-time plans are added.
+    FIX: BYOK is now free (price_type="free"), so this returns empty set.
     Kept for backward compatibility with billing code.
     """
     return {pid for pid, p in PLANS.items() if p["price_type"] == "one_time"}

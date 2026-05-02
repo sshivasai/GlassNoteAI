@@ -15,9 +15,8 @@ export function PricingCTA({ planId, label, isPopular }: PricingCTAProps) {
   const router = useRouter();
 
   const handleClick = () => {
-    // FIX: Handle both free and BYOK as free plans (no payment needed)
-    if (planId === "free" || planId === "byok") {
-      // Free plans — just get started (no billing)
+    // Free plan — just get started (no billing needed)
+    if (planId === "free") {
       isAuthenticated ? router.push("/dashboard") : openAuth("signup");
       return;
     }

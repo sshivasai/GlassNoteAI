@@ -82,6 +82,9 @@ def _keyring_delete(key: str) -> None:
 CONFIG_PATH = Path.home() / ".glassnote" / "config.json"
 
 DEFAULTS = {
+    # ── Account settings ───────────────────────────────────────
+    "glassnote_byok_enabled": False,  # BYOK toggle (any plan can enable)
+
     # ── API Keys ───────────────────────────────────────────────
     "anthropic_api_key":  "",
     "openai_api_key":     "",

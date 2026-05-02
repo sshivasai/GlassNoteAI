@@ -51,11 +51,7 @@ function getPlanFeatureLines(plan: Plan): string[] {
 
   // Feature highlights
   if (plan.features.smart_answering) {
-    if (plan.byok_allowed) {
-      lines.push("Bring your own Anthropic/OpenAI keys");
-    } else {
-      lines.push("Smart answering & auto-capture");
-    }
+    lines.push("Smart answering & auto-capture");
   }
 
   if (plan.features.priority_support) {
@@ -66,19 +62,16 @@ function getPlanFeatureLines(plan: Plan): string[] {
     lines.push("Usage dashboard");
   }
 
-  if (plan.byok_allowed) {
-    lines.push("Zero platform API cost");
-  }
+  // Note: BYOK is now a user account setting, not plan-specific
+  // All users can enable BYOK in Settings regardless of plan
 
   return lines;
 }
 
 function getPlanCTA(plan: Plan): { label: string; href: string } {
-  // FIX: Handle free plans (free + byok) vs paid plans differently
   if (plan.price_type === "free") {
-    // Free plans: "Get Started Free" - no payment required
-    const label = plan.id === "byok" ? "Start Free with BYOK" : "Start Free";
-    return { label, href: `/signup?plan=${plan.id}` };
+    // Free plan: "Get Started Free" - no payment required
+    return { label: "Start Free", href: `/signup?plan=${plan.id}` };
   }
 
   // Paid plans: "Subscribe" or custom label
@@ -107,7 +100,6 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: false, auto_capture: false, prompt_caching: false, response_cache: true, auto_model_routing: false, http2_pooling: true, priority_support: false },
     stt_providers: ["deepgram"],
-    byok_allowed: false,
     badge_color: "#888888",
     sort_order: 0,
   },
@@ -124,7 +116,6 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: false },
     stt_providers: ["deepgram"],
-    byok_allowed: false,
     badge_color: "#4f8ef7",
     sort_order: 1,
   },
@@ -141,27 +132,10 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: true },
     stt_providers: ["deepgram", "openai_realtime"],
-    byok_allowed: false,
     badge_color: "#f59e0b",
     sort_order: 2,
   },
-  {
-    id: "byok",
-    display_name: "BYOK",
-    tagline: "Use your own API keys forever",
-    price_monthly: 0,              // FIX: BYOK is now FREE (was 9900)
-    price_display: "Free",         // FIX: Show "Free" (was "$99 forever")
-    price_type: "free",            // FIX: Changed from "one_time" to "free"
-    sessions_per_month: 9999,
-    sessions_lifetime: true,       // FIX: Changed to true (lifetime like free)
-    session_duration_min: 0,
-    allowed_models: [],
-    features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: true },
-    stt_providers: ["deepgram", "openai_realtime"],
-    byok_allowed: true,
-    badge_color: "#10b981",
-    sort_order: 3,
-  },
+  // Note: BYOK is now a user account setting, not a separate plan
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────

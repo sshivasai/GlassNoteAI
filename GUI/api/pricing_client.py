@@ -76,7 +76,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": False, "auto_capture": False, "prompt_caching": False,
                      "response_cache": True, "auto_model_routing": False, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": True,  # All plans support BYOK
+        "stt_providers": ["deepgram"],
         "badge_color": "#888888", "sort_order": 0,
     },
     "base": {
@@ -89,7 +89,7 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": False},
-        "stt_providers": ["deepgram"], "byok_allowed": True,  # All plans support BYOK
+        "stt_providers": ["deepgram"],
         "badge_color": "#4f8ef7", "sort_order": 1,
     },
     "unlimited": {
@@ -102,11 +102,10 @@ _FALLBACK_PLANS = {
         "features": {"smart_answering": True, "auto_capture": True, "prompt_caching": True,
                      "response_cache": True, "auto_model_routing": True, "http2_pooling": True,
                      "priority_support": True},
-        "stt_providers": ["deepgram", "openai_realtime"], "byok_allowed": True,  # All plans support BYOK
+        "stt_providers": ["deepgram", "openai_realtime"],
         "badge_color": "#f59e0b", "sort_order": 2,
     },
-    # BYOK removed from plans - it's now a feature flag (User.byok_enabled)
-    # All plans support BYOK when the feature is enabled on the account
+    # Note: BYOK is now a user account setting (byok_enabled), not a separate plan
 }
 
 

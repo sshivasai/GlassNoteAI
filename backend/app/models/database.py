@@ -59,6 +59,7 @@ class User(Base):
     plan_expires_at         = Column(DateTime(timezone=True), nullable=True)   # None = free / no expiry
     byok_enabled            = Column(Boolean, default=False)  # BYOK feature flag (not a plan)
     stripe_customer_id      = Column(String(255), nullable=True)
+    byok_enabled            = Column(Boolean, default=False, nullable=False)    # BYOK toggle (any plan)
     is_active               = Column(Boolean, default=True)
     is_verified             = Column(Boolean, default=False)
     bound_device_id         = Column(String(128), nullable=True)
