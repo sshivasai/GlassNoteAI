@@ -198,18 +198,32 @@ class AudioPipeline(QThread):
             on_stereo_mix_warning = self._on_stereo_mix_warning,
         )
 
-        # ── Start voice gate (ALWAYS on mic) ───────────────────────────────────
-        # Bug C fix: hold_time reduced from 1.5 → 0.8 s.
-        # 1.5 s was causing the gate to block dispatch for too long after the
-        # user stopped speaking (logs showed "user speaking (1.3s ago) →
-        # holding dispatch").  0.8 s is enough to avoid false-positive
-        # dispatch while the user is still mid-sentence, while releasing
-        # quickly enough that the silence timer can fire promptly.
-        self._voice_gate = VoiceActivityGate(
-            on_user_started = self._on_user_started_speaking,
-            on_user_stopped = self._on_user_stopped_speaking,
-            hold_time       = 0.8,
-        )
+        # ── Start voice gate (CONDITIONAL on audio source) ─────────────────────
+        # P1 FIX: Voice gate should only run when needed:
+        #   - "microphone": YES (blocks dispatch when user speaks - prevents echo)
+        #   - "system": NO (system audio only - user speech irrelevant)
+        #   - "both": YES but don't block (monitor for future dual-stream, but
+        #            we WANT to capture user speech separately)
+        #
+        # For now, only enable for "microphone" mode (where it's needed).
+        # When dual-stream is implemented, "both" will use a modified gate.
+        if source == "microphone":
+            # Bug C fix: hold_time reduced from 1.5 → 0.8 s.
+            self._voice_gate = VoiceActivityGate(
+                on_user_started = self._on_user_started_speaking,
+                on_user_stopped = self._on_user_stopped_speaking,
+                hold_time       = 0.8,
+            )
+            gate_ok = self._voice_gate.start()
+            if not gate_ok:
+                print("[pipeline] Voice gate unavailable — "
+                      "using silence-only detection")
+                self._voice_gate = None
+        else:
+            # "system" or "both" mode - no voice gate needed yet
+            self._voice_gate = None
+            gate_ok = False
+            print(f"[pipeline] Voice gate disabled for source={source}")
 
         try:
             self._recorder.start()
@@ -218,11 +232,8 @@ class AudioPipeline(QThread):
             if hasattr(self._stt, "start"):
                 self._stt.start(native_sr)
 
-            gate_ok = self._voice_gate.start()
-            if not gate_ok:
-                print("[pipeline] Voice gate unavailable — "
-                      "using silence-only detection")
-                self._voice_gate = None
+            # Voice gate already started above (conditional on source)
+            # No need to start it here again
 
             self.recording_started.emit()
             print(
@@ -262,37 +273,117 @@ class AudioPipeline(QThread):
 
     def pause(self):
         """
-        Gate the dispatch — stop forwarding audio to the LLM.
+        Stop audio flow to STT and reset state.
 
-        The STT WebSocket and audio devices remain open and connected.
-        Only the "interview listening" state is suppressed.
-        Calling this multiple times is idempotent.
+        CRITICAL FIX: Previously only set _gated=True, but audio already in
+        the STT WebSocket buffer would continue processing. Now we:
+        1. Stop the recorder (prevents new audio from reaching STT)
+        2. Close STT WebSocket (flushes buffer)
+        3. Voice gate is NOT stopped (will be restarted on resume)
+
+        Trade-off: Resume is no longer instant (~500-800ms), but this fully
+        stops transcription when paused (no audio leaks).
         """
         if self._gated:
             return
         self._gated = True
         self._reset_segment_state()
         self.partial_transcript.emit("")
-        print("[pipeline] ⏸ Paused (gate closed — STT still connected)")
+
+        # CRITICAL FIX: Stop recorder to prevent audio callback from firing
+        if self._recorder:
+            try:
+                self._recorder.stop()
+            except Exception as e:
+                print(f"[pipeline] Recorder stop error (non-fatal): {e}")
+            self._recorder = None
+
+        # CRITICAL FIX: Close STT to flush WebSocket buffer
+        # This prevents buffered audio from being transcribed after pause
+        if self._stt:
+            try:
+                # Close the WebSocket cleanly
+                if hasattr(self._stt, 'close'):
+                    self._stt.close()
+                # Stop any background threads
+                if hasattr(self._stt, 'stop'):
+                    self._stt.stop()
+            except Exception as e:
+                print(f"[pipeline] STT close error (non-fatal): {e}")
+            self._stt = None
+
+        print("[pipeline] ⏸ Paused (recorder stopped, STT closed)")
 
     def resume(self):
         """
-        Open the gate — immediately begin forwarding audio to the LLM.
+        Restart recorder and STT to resume transcription.
 
-        Because the pipeline was already running (no cold start needed),
-        this returns effectively instantly (~0 ms).
+        CRITICAL FIX: Previously just opened gate, but now we need to
+        restart the stopped recorder and reconnect STT WebSocket.
+
+        Trade-off: Resume is no longer instant (~500-800ms), but this ensures
+        no audio leaks through when paused. The warm-up time is acceptable
+        because connections are still pre-resolved (DNS cached).
         """
         if not self._gated:
             return
         self._gated = False
         self._reset_segment_state()
         self._last_dispatch_time = time.time()
-        # Flush any EndOfTurn that fired while gate was closed
-        if self._pending_smart_dispatch:
-            pending = self._pending_smart_dispatch
-            self._pending_smart_dispatch = ""
-            self._on_smart_dispatch(pending)
-        print("[pipeline] ▶ Resumed (gate open — listening for questions)")
+
+        # CRITICAL FIX: Restart recorder
+        cfg = config.load_config()
+        source = cfg.get("audio_source", "system")
+
+        self._recorder = AudioRecorder(
+            source=source,
+            on_level=lambda lvl: self.level_update.emit(lvl),
+            on_chunk=self._on_audio_chunk,
+            on_stereo_mix_warning=self._on_stereo_mix_warning,
+        )
+
+        # P1 FIX: Restart voice gate conditionally (only for microphone mode)
+        if source == "microphone":
+            self._voice_gate = VoiceActivityGate(
+                on_user_started=self._on_user_started_speaking,
+                on_user_stopped=self._on_user_stopped_speaking,
+                hold_time=0.8,
+            )
+        else:
+            self._voice_gate = None
+
+        try:
+            self._recorder.start()
+            native_sr = self._recorder.get_native_sr()
+
+            # CRITICAL FIX: Reconnect STT WebSocket
+            self._stt = self._create_stt(cfg)
+            if self._stt and hasattr(self._stt, "start"):
+                self._stt.start(native_sr)
+
+            # Start voice gate if needed
+            gate_ok = False
+            if self._voice_gate:
+                gate_ok = self._voice_gate.start()
+                if not gate_ok:
+                    print("[pipeline] Voice gate unavailable on resume")
+                    self._voice_gate = None
+
+            print(
+                f"[pipeline] ▶ Resumed (recorder restarted, STT reconnected — "
+                f"source={source}, gate={'ON' if gate_ok else 'OFF'})"
+            )
+
+            # Flush any EndOfTurn that fired while gate was closed
+            if self._pending_smart_dispatch:
+                pending = self._pending_smart_dispatch
+                self._pending_smart_dispatch = ""
+                self._on_smart_dispatch(pending)
+
+        except Exception as e:
+            self.transcribe_error.emit(f"Resume failed: {e}")
+            self._gated = True  # Revert to paused state
+            print(f"[pipeline] Resume failed: {e}")
 
     def is_running(self) -> bool:
         """True if the pipeline is started (audio flowing, even if gated)."""

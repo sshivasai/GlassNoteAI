@@ -151,6 +151,13 @@ class DeepgramStreamingSTT:
     def get_full_transcript(self) -> str:
         return self._full_transcript.strip()
 
+    def close(self):
+        """
+        Close WebSocket connections immediately.
+        Alias for stop() for compatibility with pipeline.pause().
+        """
+        self.stop()
+
     def stop(self) -> str:
         self._running = False
         self._stop_event.set()
