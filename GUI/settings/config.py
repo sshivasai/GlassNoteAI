@@ -214,6 +214,7 @@ DEFAULTS = {
 # FIX (MEDIUM-2): Added hash check to prevent mtime manipulation bypass
 
 _cache_lock:   threading.Lock       = threading.Lock()
+_save_lock:    threading.Lock       = threading.Lock()  # Prevents concurrent saves
 _cached_cfg:   dict | None          = None
 _cached_mtime: float                = 0.0
 _cached_hash:  str                  = ""  # MD5 hash for tamper detection
@@ -302,37 +303,55 @@ def save_config(cfg: dict) -> None:
     Save config to disk and invalidate the in-memory cache.
 
     Thread-safe atomic write using temp file + rename to prevent corruption.
+    Uses _save_lock to prevent concurrent saves from multiple threads.
 
     Args:
         cfg (dict): The config dict to persist.
     """
     global _cached_cfg, _cached_mtime, _cached_hash
+    import time
 
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # Acquire save lock to prevent concurrent saves
+    with _save_lock:
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    # Atomic write: write to temp file, then rename
-    # This prevents corruption if process is killed mid-write
-    temp_path = CONFIG_PATH.with_suffix('.tmp')
-    try:
-        with open(temp_path, "w", encoding='utf-8') as f:
-            json.dump(cfg, f, indent=2)
-
-        # Atomic rename (POSIX guarantees atomicity)
-        temp_path.replace(CONFIG_PATH)
-    except Exception as e:
-        print(f"[config] Save failed: {e}")
-        # Clean up temp file if it exists
-        if temp_path.exists():
+        # Retry with exponential backoff for Windows file lock issues
+        max_retries = 5
+        for attempt in range(max_retries):
+            temp_path = CONFIG_PATH.with_suffix(f'.tmp{attempt}')  # Unique temp per attempt
             try:
-                temp_path.unlink()
-            except Exception:
-                pass
-        raise
+                # Write to temp file
+                with open(temp_path, "w", encoding='utf-8') as f:
+                    json.dump(cfg, f, indent=2)
 
-    # Invalidate cache — next load_config() will re-read
-    with _cache_lock:
-        _cached_cfg   = None
-        _cached_mtime = 0.0
+                # Atomic rename (may fail on Windows if target is locked)
+                temp_path.replace(CONFIG_PATH)
+
+                # Success - break retry loop
+                break
+
+            except (PermissionError, OSError) as e:
+                # Clean up this attempt's temp file
+                if temp_path.exists():
+                    try:
+                        temp_path.unlink()
+                    except Exception:
+                        pass
+
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 50ms, 100ms, 200ms, 400ms
+                    delay = 0.05 * (2 ** attempt)
+                    print(f"[config] Save retry {attempt + 1}/{max_retries} after {int(delay*1000)}ms (error: {e})")
+                    time.sleep(delay)
+                else:
+                    # Final attempt failed - log and raise
+                    print(f"[config] Save failed after {max_retries} attempts: {e}")
+                    raise
+
+        # Invalidate cache — next load_config() will re-read
+        with _cache_lock:
+            _cached_cfg   = None
+            _cached_mtime = 0.0
 
 
 def invalidate_cache() -> None:

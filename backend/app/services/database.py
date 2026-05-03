@@ -77,14 +77,48 @@ async def get_db() -> AsyncSession:
 
 async def create_tables():
     """
-    Create all tables defined in ``models/database.py``.
+    Initialize database schema.
 
-    Called once during application startup. In production, use Alembic
-    migrations instead. This is a convenience for development.
+    1. Creates base tables if they don't exist (using SQLAlchemy models)
+    2. Runs Alembic migrations to apply schema changes
+
+    Safe for both first-time setup and existing databases.
     """
+    # Step 1: Create base tables first (required for migrations to work)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("[db] ✓ Tables created / verified")
+    print("[db] ✓ Base tables created / verified")
+
+    # Step 2: Run Alembic migrations (for schema updates)
+    # Alembic needs to run in a thread since it uses synchronous DB connections
+    try:
+        import asyncio
+        from alembic.config import Config
+        from alembic import command
+        import os
+
+        # Get the backend directory path (where alembic.ini is located)
+        # __file__ is in backend/app/services/database.py, need to go up 3 levels
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        alembic_ini = os.path.join(backend_dir, "alembic.ini")
+
+        if os.path.exists(alembic_ini):
+            print("[db] Running Alembic migrations...")
+
+            def run_alembic():
+                alembic_cfg = Config(alembic_ini)
+                command.upgrade(alembic_cfg, "head")
+
+            # Run Alembic in a thread pool to avoid async context issues
+            await asyncio.to_thread(run_alembic)
+            print("[db] ✓ Migrations applied successfully")
+        else:
+            print(f"[db] WARNING: alembic.ini not found at {alembic_ini}")
+    except Exception as e:
+        print(f"[db] WARNING: Migration failed: {e}")
+        print("[db]   This is non-fatal if tables are already up-to-date")
+
+    print("[db] ✓ Database ready")
 
 
 async def close_engine():

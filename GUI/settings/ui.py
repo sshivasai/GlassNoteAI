@@ -41,10 +41,12 @@ def _note(text: str) -> QLabel:
 class SettingsWindow(QWidget):
     """
     The main settings UI window.
-    Provides tabs to configure API keys, AI models, audio source options, 
+    Provides tabs to configure API keys, AI models, audio source options,
     overlay styling, and capture behaviors for GlassNote.
     """
     settings_saved = pyqtSignal()
+    _sig_byok_success = pyqtSignal(dict)  # Thread-safe BYOK success signal
+    _sig_byok_error = pyqtSignal(str)     # Thread-safe BYOK error signal
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,6 +54,12 @@ class SettingsWindow(QWidget):
         self._user_plan  = self.cfg.get("glassnote_user_plan", "").strip()
         self._user_email = self.cfg.get("glassnote_user_email", "").strip()
         self._drag_pos   = None
+        self._byok_toggle_in_progress = False  # Guard against duplicate callbacks
+
+        # Connect BYOK signals (thread-safe callbacks)
+        self._sig_byok_success.connect(self._handle_byok_success)
+        self._sig_byok_error.connect(self._handle_byok_error)
+
         self._build_ui()
         self._refresh_theme()
         if self._user_plan:
@@ -66,9 +74,17 @@ class SettingsWindow(QWidget):
         self.cfg         = config.load_config()
         self._user_plan  = self.cfg.get("glassnote_user_plan", "free").strip() or "free"
         self._user_email = self.cfg.get("glassnote_user_email", "").strip()
+
+        # Configure auth_client with API URL and token
+        from api.auth_client import auth_client as _ac
+        api_url = self.cfg.get("glassnote_api_url", "").strip()
+        token = self.cfg.get("glassnote_api_token", "").strip()
+        if api_url:
+            _ac.configure(api_url, token)
+
         self._stack.setCurrentIndex(1)
         self._load_values()
-        self._apply_plan_restrictions()
+        self._apply_plan_restrictions(silent=True)  # Initial load - no animation
 
     # ── Build ──────────────────────────────────────────────────────────────────
 
@@ -256,7 +272,24 @@ class SettingsWindow(QWidget):
             "Deepgram provides ultra-low latency streaming transcription. "
             "Get a free key at deepgram.com \u2014 200 h free per month."
         )
+        #Cerebras Models  
+        
         layout.addWidget(self._byok_dg_note)
+
+        self._byok_sep3 = _sep()
+        layout.addWidget(self._byok_sep3)
+
+        self._byok_cerebras_label = _section("Cerebras (Ultra-Fast LLMs)")
+        layout.addWidget(self._byok_cerebras_label)
+        self.cerebras_key = QLineEdit()
+        self.cerebras_key.setPlaceholderText("csk-...")
+        self.cerebras_key.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.cerebras_key)
+        self._byok_cerebras_note = _note(
+            "Cerebras provides ultra-fast inference with Llama models. "
+            "Get an API key at cerebras.ai for speeds up to 1000 tokens/sec."
+        )
+        layout.addWidget(self._byok_cerebras_note)
 
         self._byok_widgets = [
             self._byok_section_label, self._byok_desc,
@@ -264,6 +297,8 @@ class SettingsWindow(QWidget):
             self._byok_openai_label, self.openai_key, self._byok_openai_note,
             self._byok_sep2,
             self._byok_dg_label, self.deepgram_key, self._byok_dg_note,
+            self._byok_sep3,
+            self._byok_cerebras_label, self.cerebras_key, self._byok_cerebras_note,
         ]
 
         layout.addStretch()
@@ -314,6 +349,13 @@ class SettingsWindow(QWidget):
 
         layout.addWidget(_sep())
 
+        layout.addWidget(_section("Cerebras Model"))
+        self.cerebras_model = QComboBox()
+        # Populated dynamically in _populate_plan_models()
+        layout.addWidget(self.cerebras_model)
+
+        layout.addWidget(_sep())
+
         layout.addWidget(_section("Max Output Tokens"))
         self.max_tokens = QSpinBox()
         self.max_tokens.setRange(256, 8192)
@@ -338,13 +380,31 @@ class SettingsWindow(QWidget):
         return w
 
     def _populate_plan_models(self):
-        """Populate Anthropic and OpenAI model dropdowns based on user plan."""
-        allowed = pricing.get_allowed_models(self._user_plan)
-        plan_data = pricing.get_plan(self._user_plan)
+        """
+        Populate Anthropic, OpenAI, and Cerebras model dropdowns.
+
+        BYOK enabled = ALL models available (user uses own keys)
+        BYOK disabled = Plan-based restrictions apply
+        """
+        # Check if BYOK is enabled - if yes, show ALL models regardless of plan
+        byok_enabled = self.cfg.get("glassnote_byok_enabled", False)
+
+        if byok_enabled:
+            # BYOK enabled → Show ALL models from all tiers
+            allowed = pricing.get_all_models()
+            plan_info_text = "🔑 BYOK Enabled — All models available"
+        else:
+            # BYOK disabled → Show only plan-allowed models
+            allowed = pricing.get_allowed_models(self._user_plan)
+            plan_data = pricing.get_plan(self._user_plan)
+            plan_name = plan_data["display_name"]
+            total = len(allowed)
+            plan_info_text = f"📋 {plan_name} Plan — {total} models available"
 
         # Split by provider
         anthro_models = [m[2] for m in allowed if m[1] == "anthropic"]
         openai_models = [m[2] for m in allowed if m[1] == "openai"]
+        cerebras_models = [m[2] for m in allowed if m[1] == "cerebras"]
 
         # Anthropic dropdown
         self.anthropic_model.clear()
@@ -354,12 +414,44 @@ class SettingsWindow(QWidget):
         self.openai_model.clear()
         self.openai_model.addItems(openai_models if openai_models else ["gpt-4o-mini"])
 
-        # Plan info label
-        plan_name = plan_data["display_name"]
-        total = len(allowed)
-        self._models_plan_info.setText(
-            f"📋 {plan_name} Plan — {total} models available"
-        )
+        # Cerebras dropdown
+        self.cerebras_model.clear()
+        if cerebras_models:
+            self.cerebras_model.addItems(cerebras_models)
+            self.cerebras_model.setEnabled(True)
+        else:
+            self.cerebras_model.addItem("Not available" if not byok_enabled else "No Cerebras models")
+            self.cerebras_model.setEnabled(False)
+
+        # Plan info label with smooth transition
+        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
+
+        # Fade out old text
+        fade_out = QPropertyAnimation(self._models_plan_info, b"windowOpacity")
+        fade_out.setDuration(150)
+        fade_out.setStartValue(1.0)
+        fade_out.setEndValue(0.3)
+        fade_out.setEasingCurve(QEasingCurve.Type.OutQuad)
+
+        def update_text():
+            self._models_plan_info.setText(plan_info_text)
+            # Fade in new text
+            fade_in = QPropertyAnimation(self._models_plan_info, b"windowOpacity")
+            fade_in.setDuration(200)
+            fade_in.setStartValue(0.3)
+            fade_in.setEndValue(1.0)
+            fade_in.setEasingCurve(QEasingCurve.Type.InQuad)
+            fade_in.start()
+            if not hasattr(self, '_label_animations'):
+                self._label_animations = []
+            self._label_animations.append(fade_in)
+
+        fade_out.finished.connect(update_text)
+        fade_out.start()
+
+        if not hasattr(self, '_label_animations'):
+            self._label_animations = []
+        self._label_animations.append(fade_out)
 
         # Disable features not available on this plan
         if not pricing.is_feature_enabled(self._user_plan, "auto_model_routing"):
@@ -987,6 +1079,7 @@ class SettingsWindow(QWidget):
         self.anthropic_key.setText(get_secure("anthropic_api_key", ""))
         self.openai_key.setText(get_secure("openai_api_key", ""))
         self.deepgram_key.setText(get_secure("deepgram_api_key", ""))
+        self.cerebras_key.setText(get_secure("cerebras_api_key", ""))
 
         # Populate plan-filtered model lists BEFORE selecting saved values
         self._populate_plan_models()
@@ -999,6 +1092,9 @@ class SettingsWindow(QWidget):
 
         idx = self.openai_model.findText(c.get("openai_model", "gpt-4o-mini"))
         self.openai_model.setCurrentIndex(max(0, idx))
+
+        idx = self.cerebras_model.findText(c.get("cerebras_model", "llama3.1-8b"))
+        self.cerebras_model.setCurrentIndex(max(0, idx))
 
         self.max_tokens.setValue(c.get("max_tokens", 2048))
         self.auto_model_routing.setChecked(c.get("auto_model_routing", True))
@@ -1091,10 +1187,12 @@ class SettingsWindow(QWidget):
             "anthropic_api_key":     self.anthropic_key.text().strip(),
             "openai_api_key":        self.openai_key.text().strip(),
             "deepgram_api_key":      self.deepgram_key.text().strip(),
+            "cerebras_api_key":      self.cerebras_key.text().strip(),
 
             # LLM models
             "anthropic_model":       self.anthropic_model.currentText(),
             "openai_model":          self.openai_model.currentText(),
+            "cerebras_model":        self.cerebras_model.currentText(),
             "max_tokens":            self.max_tokens.value(),
             "auto_model_routing":    self.auto_model_routing.isChecked(),
 
@@ -1145,7 +1243,7 @@ class SettingsWindow(QWidget):
         self._user_plan = "free"
         self._load_values()
         self._update_region_label()
-        self._apply_plan_restrictions()
+        self._apply_plan_restrictions(silent=True)  # Reset - no animation
 
     # ── BYOK Toggle Handler ───────────────────────────────────────────────────
 
@@ -1167,6 +1265,11 @@ class SettingsWindow(QWidget):
         from api.auth_client import auth_client
         from PyQt6.QtWidgets import QMessageBox
 
+        # Guard against duplicate calls
+        if self._byok_toggle_in_progress:
+            print("[settings] BYOK toggle already in progress, ignoring duplicate call")
+            return
+
         # Check if user is logged in
         if not auth_client.is_authenticated:
             QMessageBox.warning(
@@ -1180,94 +1283,321 @@ class SettingsWindow(QWidget):
             self._byok_toggle.blockSignals(False)
             return
 
+        # Mark toggle in progress
+        self._byok_toggle_in_progress = True
+
         # Disable toggle while processing
         self._byok_toggle.setEnabled(False)
 
+        # Store checked state for callbacks
+        self._byok_pending_state = checked
+
+        # Thread-safe callbacks - emit signals instead of touching UI
         def on_success(data):
-            """Handle successful BYOK toggle."""
-            # Update config
-            cfg = config.load_config()
-            cfg["glassnote_byok_enabled"] = checked
-            config.save_config(cfg)
-
-            # Show/hide API key fields
-            self._apply_plan_restrictions()
-
-            action = "enabled" if checked else "disabled"
-            QMessageBox.information(
-                self,
-                "BYOK Updated",
-                f"BYOK {action} successfully!\n\n"
-                f"{data.get('message', '')}"
-            )
-            self._byok_toggle.setEnabled(True)
+            """Called from background thread - emit signal to main thread."""
+            self._sig_byok_success.emit(data)
 
         def on_error(error_msg):
-            """Handle BYOK toggle error."""
+            """Called from background thread - emit signal to main thread."""
+            self._sig_byok_error.emit(error_msg)
+
+        # Call backend API (runs in background thread)
+        auth_client.toggle_byok(checked, on_success, on_error)
+
+    def _handle_byok_success(self, data: dict):
+        """
+        Handle BYOK toggle success (called on main thread via signal).
+
+        Args:
+            data: Response dict from backend containing 'message' and 'access_token'.
+        """
+        # Guard against duplicate calls
+        if not self._byok_toggle_in_progress:
+            print("[settings] BYOK success handler called but no toggle in progress, ignoring")
+            return
+
+        checked = self._byok_pending_state
+
+        try:
+            # Update config (config module now has thread-safe locking)
+            cfg = config.load_config()
+            cfg["glassnote_byok_enabled"] = checked
+
+            try:
+                config.save_config(cfg)
+            except Exception as e:
+                print(f"[settings] Config save failed: {e}")
+                # Continue anyway - show UI update, will sync on next save
+
+            # Reload config in memory
+            self.cfg = cfg
+
+            # Show/hide API key fields with smooth animation
+            self._apply_plan_restrictions(silent=False)
+
+            # Show inline success feedback
+            self._show_byok_status_feedback(checked)
+
+            print(f"[settings] BYOK {'enabled' if checked else 'disabled'} - config updated, UI refreshed")
+
+        finally:
+            # Clear in-progress flag and re-enable toggle
+            self._byok_toggle_in_progress = False
+            self._byok_toggle.setEnabled(True)
+
+    def _handle_byok_error(self, error_msg: str):
+        """
+        Handle BYOK toggle error (called on main thread via signal).
+
+        Args:
+            error_msg: Error message string from backend.
+        """
+        # Guard against duplicate calls
+        if not self._byok_toggle_in_progress:
+            print("[settings] BYOK error handler called but no toggle in progress, ignoring")
+            return
+
+        checked = self._byok_pending_state
+
+        try:
+            # Show error message
+            from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(
                 self,
                 "BYOK Toggle Failed",
                 f"Failed to toggle BYOK:\n\n{error_msg}"
             )
-            # Revert toggle
+
+            # Revert toggle to previous state
             self._byok_toggle.blockSignals(True)
             self._byok_toggle.setChecked(not checked)
             self._byok_toggle.blockSignals(False)
+
+            print(f"[settings] BYOK toggle failed: {error_msg}")
+
+        finally:
+            # Clear in-progress flag and re-enable toggle
+            self._byok_toggle_in_progress = False
             self._byok_toggle.setEnabled(True)
 
-        # Call backend API
-        auth_client.toggle_byok(checked, on_success, on_error)
+    # ── BYOK Status Feedback ──────────────────────────────────────────────────
+
+    def _show_byok_status_feedback(self, enabled: bool):
+        """
+        Show inline success feedback without blocking popup.
+
+        Creates a temporary status label that fades out after 3 seconds.
+        """
+        try:
+            from PyQt6.QtCore import QTimer, QPropertyAnimation
+            from PyQt6.QtGui import QFont
+
+            # Create or reuse status label
+            if not hasattr(self, '_byok_status_label'):
+                self._byok_status_label = QLabel(self)
+                self._byok_status_label.setObjectName("byok_status_feedback")
+                font = QFont("Segoe UI", 11, QFont.Weight.Bold)
+                self._byok_status_label.setFont(font)
+                self._byok_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self._byok_status_label.setWordWrap(True)
+
+            # Position below the BYOK toggle
+            label = self._byok_status_label
+            action = "enabled" if enabled else "disabled"
+            icon = "🔑" if enabled else "🔒"
+
+            # Style based on action
+            from utils import theme as th
+            t = th.current()
+
+            if enabled:
+                color = t.get('success', '#34d399')
+                bg_color = "rgba(52, 211, 153, 0.12)"  # Success with transparency
+            else:
+                color = t.get('text2', '#aab6c8')
+                bg_color = t.get('bg3', '#171d29')
+
+            label.setStyleSheet(f"""
+                QLabel {{
+                    background: {bg_color};
+                    color: {color};
+                    border: 1px solid {color};
+                    border-radius: 8px;
+                    padding: 12px 20px;
+                    margin-top: 8px;
+                }}
+            """)
+            label.setText(f"{icon}  BYOK {action} successfully!")
+
+            # Position it below the toggle (find it in the layout)
+            label.setParent(self._account_inner)
+            label.setGeometry(24, 280, 592, 50)  # x, y, width, height
+            label.show()
+
+            # Fade out after 3 seconds
+            QTimer.singleShot(3000, lambda: self._fade_out_status(label))
+
+        except Exception as e:
+            print(f"[settings] Status feedback display failed (non-fatal): {e}")
+
+    def _fade_out_status(self, label: QLabel):
+        """Fade out and hide the status label."""
+        from PyQt6.QtCore import QPropertyAnimation
+
+        animation = QPropertyAnimation(label, b"windowOpacity")
+        animation.setDuration(500)
+        animation.setStartValue(1.0)
+        animation.setEndValue(0.0)
+        animation.finished.connect(label.hide)
+        animation.start()
+
+        # Store to prevent garbage collection
+        if not hasattr(self, '_fade_animations'):
+            self._fade_animations = []
+        self._fade_animations.append(animation)
+
+    # ── BYOK Field Animation ──────────────────────────────────────────────────
+
+    def _animate_byok_fields(self, show: bool):
+        """
+        Smoothly animate BYOK API key fields appearing/disappearing.
+
+        Args:
+            show: True to show fields, False to hide
+        """
+        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, QTimer
+
+        # Set target visibility immediately to reserve space
+        for widget in self._byok_widgets:
+            if show:
+                widget.setVisible(True)
+                widget.setMaximumHeight(0)  # Start collapsed
+            # else: will hide after animation
+
+        if show:
+            # Expand animation
+            for widget in self._byok_widgets:
+                # Get natural height
+                widget.setMaximumHeight(16777215)  # Remove constraint
+                natural_height = widget.sizeHint().height()
+                widget.setMaximumHeight(0)  # Reset to collapsed
+
+                # Animate expansion
+                animation = QPropertyAnimation(widget, b"maximumHeight")
+                animation.setDuration(300)  # 300ms
+                animation.setStartValue(0)
+                animation.setEndValue(natural_height)
+                animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+                animation.start()
+
+                # Store animation to prevent garbage collection
+                if not hasattr(self, '_animations'):
+                    self._animations = []
+                self._animations.append(animation)
+        else:
+            # Collapse animation
+            for widget in self._byok_widgets:
+                current_height = widget.height()
+
+                animation = QPropertyAnimation(widget, b"maximumHeight")
+                animation.setDuration(250)  # 250ms
+                animation.setStartValue(current_height)
+                animation.setEndValue(0)
+                animation.setEasingCurve(QEasingCurve.Type.InCubic)
+
+                # Hide widget after animation completes
+                animation.finished.connect(lambda w=widget: w.setVisible(False))
+                animation.start()
+
+                if not hasattr(self, '_animations'):
+                    self._animations = []
+                self._animations.append(animation)
 
     # ── Plan-based UI restrictions ─────────────────────────────────────────────
 
-    def _apply_plan_restrictions(self):
-        """Show/hide UI based on user's plan and BYOK toggle state."""
-        # BYOK is now a toggle, not a plan - check config setting
+    def _apply_plan_restrictions(self, silent: bool = False):
+        """
+        Show/hide UI based on user's plan and BYOK toggle state.
+
+        IMPORTANT: BYOK enabled = FULL ACCESS to all models and features
+        regardless of plan (user uses own API keys).
+
+        Args:
+            silent: If True, update UI without animations or notifications
+        """
+        # Check BYOK status
         byok_enabled = self.cfg.get("glassnote_byok_enabled", False)
 
-        # Show/hide BYOK key fields based on toggle state (not plan)
-        for widget in self._byok_widgets:
-            widget.setVisible(byok_enabled)
+        # Show/hide BYOK key fields with smooth animation (unless silent)
+        if not silent:
+            self._animate_byok_fields(byok_enabled)
+        else:
+            # Instant visibility change (for initial load / server sync)
+            for widget in self._byok_widgets:
+                widget.setVisible(byok_enabled)
 
-        # Gate plan features
-        if hasattr(self, "auto_answer"):
-            aa_ok = pricing.is_feature_enabled(self._user_plan, "auto_capture")
-            self.auto_answer.setEnabled(aa_ok)
-            if not aa_ok:
-                self.auto_answer.setChecked(False)
-                self.auto_answer.setToolTip("Auto Answer requires Base plan or above.")
-            else:
-                self.auto_answer.setToolTip("")
+        # BYOK enabled = ALL features enabled (no restrictions)
+        if byok_enabled:
+            if hasattr(self, "auto_answer"):
+                self.auto_answer.setEnabled(True)
+                self.auto_answer.setToolTip("✓ BYOK enabled - all features available")
 
-        if hasattr(self, "smart_answering"):
-            sa_ok = pricing.is_feature_enabled(self._user_plan, "smart_answering")
-            self.smart_answering.setEnabled(sa_ok)
-            if not sa_ok:
-                self.smart_answering.setChecked(False)
-                self.smart_answering.setToolTip("Smart Answering requires Base plan or above.")
-            else:
-                self.smart_answering.setToolTip("")
+            if hasattr(self, "smart_answering"):
+                self.smart_answering.setEnabled(True)
+                self.smart_answering.setToolTip("✓ BYOK enabled - all features available")
 
-        if hasattr(self, "use_prompt_cache"):
-            pc_ok = pricing.is_feature_enabled(self._user_plan, "prompt_caching")
-            self.use_prompt_cache.setEnabled(pc_ok)
-            if not pc_ok:
-                self.use_prompt_cache.setToolTip("Prompt caching requires Base plan or above.")
-            else:
-                self.use_prompt_cache.setToolTip("")
+            if hasattr(self, "use_prompt_cache"):
+                self.use_prompt_cache.setEnabled(True)
+                self.use_prompt_cache.setToolTip("✓ BYOK enabled - all features available")
 
-        # STT provider gating
-        if hasattr(self, "stt_provider"):
-            dg_ok  = pricing.is_stt_allowed(self._user_plan, "deepgram")
-            oai_ok = pricing.is_stt_allowed(self._user_plan, "openai_realtime")
-            model = self.stt_provider.model()
-            # Index 0 = Deepgram, index 1 = OpenAI Realtime
-            if not dg_ok and self.stt_provider.currentIndex() == 0:
-                self.stt_provider.setCurrentIndex(1 if oai_ok else 0)
-            if not oai_ok and self.stt_provider.currentIndex() == 1:
-                self.stt_provider.setCurrentIndex(0)
+            if hasattr(self, "auto_model_routing"):
+                self.auto_model_routing.setEnabled(True)
+                self.auto_model_routing.setToolTip("✓ BYOK enabled - all features available")
 
-        # Refresh model dropdowns
+            if hasattr(self, "stt_provider"):
+                # All STT providers available with BYOK
+                pass  # No restrictions
+
+        # BYOK disabled = Plan-based restrictions apply
+        else:
+            if hasattr(self, "auto_answer"):
+                aa_ok = pricing.is_feature_enabled(self._user_plan, "auto_capture")
+                self.auto_answer.setEnabled(aa_ok)
+                if not aa_ok:
+                    self.auto_answer.setChecked(False)
+                    self.auto_answer.setToolTip("Auto Answer requires Base plan or above.")
+                else:
+                    self.auto_answer.setToolTip("")
+
+            if hasattr(self, "smart_answering"):
+                sa_ok = pricing.is_feature_enabled(self._user_plan, "smart_answering")
+                self.smart_answering.setEnabled(sa_ok)
+                if not sa_ok:
+                    self.smart_answering.setChecked(False)
+                    self.smart_answering.setToolTip("Smart Answering requires Base plan or above.")
+                else:
+                    self.smart_answering.setToolTip("")
+
+            if hasattr(self, "use_prompt_cache"):
+                pc_ok = pricing.is_feature_enabled(self._user_plan, "prompt_caching")
+                self.use_prompt_cache.setEnabled(pc_ok)
+                if not pc_ok:
+                    self.use_prompt_cache.setToolTip("Prompt caching requires Base plan or above.")
+                else:
+                    self.use_prompt_cache.setToolTip("")
+
+            # STT provider gating (only when BYOK disabled)
+            if hasattr(self, "stt_provider"):
+                dg_ok  = pricing.is_stt_allowed(self._user_plan, "deepgram")
+                oai_ok = pricing.is_stt_allowed(self._user_plan, "openai_realtime")
+                model = self.stt_provider.model()
+                # Index 0 = Deepgram, index 1 = OpenAI Realtime
+                if not dg_ok and self.stt_provider.currentIndex() == 0:
+                    self.stt_provider.setCurrentIndex(1 if oai_ok else 0)
+                if not oai_ok and self.stt_provider.currentIndex() == 1:
+                    self.stt_provider.setCurrentIndex(0)
+
+        # Refresh model dropdowns (checks BYOK inside _populate_plan_models)
         self._populate_plan_models()
 
 
@@ -1285,16 +1615,38 @@ class SettingsWindow(QWidget):
             return "free"
 
     def _verify_plan_from_server_v2(self):
-        """Verify plan with /api/auth/me in background (no raw token/URL needed)."""
+        """Verify plan and BYOK status with /api/auth/me in background."""
         from api.auth_client import auth_client as _ac
 
         def on_success(data: dict):
             server_plan = data.get("plan", "free")
+            server_byok = data.get("byok_enabled", False)
+
+            # Update plan if changed
             if server_plan != self._user_plan:
                 self._user_plan = server_plan
                 from PyQt6.QtCore import QTimer
                 QTimer.singleShot(0, self._apply_plan_restrictions)
                 print(f"[settings] Plan verified from server: {server_plan}")
+
+            # Update BYOK status if changed
+            current_byok = self.cfg.get("glassnote_byok_enabled", False)
+            if server_byok != current_byok:
+                # Update config silently (no notification)
+                cfg = config.load_config()
+                cfg["glassnote_byok_enabled"] = server_byok
+                config.save_config(cfg)
+                self.cfg = cfg
+
+                # Update checkbox
+                self._byok_toggle.blockSignals(True)
+                self._byok_toggle.setChecked(server_byok)
+                self._byok_toggle.blockSignals(False)
+
+                # Update UI visibility silently (no animation, no notification)
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: self._apply_plan_restrictions(silent=True))
+                print(f"[settings] BYOK status synced from server: {server_byok} (silent sync)")
 
         def on_error(msg: str):
             # FIX: Don't log "Not authenticated" as error in BYOK mode

@@ -60,6 +60,17 @@ def _lazy_all_models() -> list:
     return _get_all_models_raw()
 
 
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def get_all_models() -> list:
+    """
+    Return ALL available models as list of (display_name, provider, model_id) tuples.
+
+    Use this when BYOK is enabled to show all models regardless of plan.
+    """
+    return _get_all_models_raw()
+
+
 # Module-level PLANS / ALL_MODELS — populated lazily on first access.
 # Direct attribute access (pricing_config.PLANS) works via __getattr__.
 

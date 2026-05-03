@@ -591,7 +591,7 @@ class AuthClient:
                     timeout=httpx.Timeout(10.0, connect=5.0),
                 ) as client:
                     response = client.post(
-                        f"{self.api_url}/api/auth/toggle-byok",
+                        f"{self._api_url}/api/auth/toggle-byok",
                         json={"enabled": enabled},
                         headers={"Authorization": f"Bearer {self._token}"},
                     )

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { fetchApi, toggleBYOK } from "@/lib/api";
+import { fetchApi, toggleBYOK, removeToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,20 +75,12 @@ export default function SettingsPage() {
     setToast(null);
 
     try {
-      const token = localStorage.getItem("access_token");
-      if (!token) {
-        throw new Error("Not authenticated");
-      }
-
-      const result = await toggleBYOK(token, newValue);
-
-      // Store new JWT token
-      localStorage.setItem("access_token", result.access_token);
+      const result = await toggleBYOK(newValue);
 
       // Update local state
       setByokEnabled(newValue);
 
-      // Refresh user data
+      // Refresh user data to get updated byok_enabled status
       await refreshUser();
 
       setToast({
