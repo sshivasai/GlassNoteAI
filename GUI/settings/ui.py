@@ -110,8 +110,8 @@ class SettingsWindow(QWidget):
         # Page 0: login wall
         wall = QWidget(); wall.setObjectName("login_wall")
         wl = QVBoxLayout(wall)
-        wl.setContentsMargins(50, 70, 50, 70)
-        wl.setSpacing(16)
+        wl.setContentsMargins(60, 80, 60, 80)
+        wl.setSpacing(20)
         wl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         _LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Logo.png")
         wi = QLabel(); wi.setObjectName("wall_icon")
@@ -157,7 +157,7 @@ class SettingsWindow(QWidget):
         self._title_bar_widget.setFixedHeight(48)
 
         layout = QHBoxLayout(self._title_bar_widget)
-        layout.setContentsMargins(20, 0, 12, 0)
+        layout.setContentsMargins(24, 0, 16, 0)
 
         title = QLabel("Settings")
         title.setObjectName("settings_title_lbl")
@@ -543,6 +543,17 @@ class SettingsWindow(QWidget):
             "both",
         ])
         layout.addWidget(self.audio_source)
+
+        # Stereo Mix status indicator (NEW)
+        self._stereo_mix_status = QLabel()
+        self._stereo_mix_status.setWordWrap(True)
+        self._stereo_mix_status.setStyleSheet("font-size: 11px; padding: 8px 0;")
+        layout.addWidget(self._stereo_mix_status)
+        self._update_stereo_mix_status()
+
+        # Connect audio source change to update status
+        self.audio_source.currentIndexChanged.connect(self._update_stereo_mix_status)
+
         layout.addWidget(_note(
             "For 'system' to work: enable Stereo Mix in Windows Sound "
             "Settings (right-click speaker icon → Sounds → Recording tab)."
@@ -636,6 +647,44 @@ class SettingsWindow(QWidget):
             "How long to wait after last word before auto-sending."
         )
         self.silence_threshold.setToolTip(tip)
+
+    # ── Stereo Mix status update ───────────────────────────────────────────────
+
+    def _update_stereo_mix_status(self):
+        """Update Stereo Mix availability status based on current audio source."""
+        from audio.stereo_mix_checker import check_stereo_mix_available, should_check_stereo_mix
+
+        src_map = ["system", "microphone", "both"]
+        current_source = src_map[self.audio_source.currentIndex()]
+
+        if not should_check_stereo_mix(current_source):
+            # Microphone mode - Stereo Mix not needed
+            self._stereo_mix_status.setText("")
+            self._stereo_mix_status.hide()
+            return
+
+        # Check Stereo Mix availability
+        available, info = check_stereo_mix_available()
+
+        if available:
+            # Show success status
+            self._stereo_mix_status.setText(
+                f"✅ Stereo Mix available: {info}"
+            )
+            self._stereo_mix_status.setStyleSheet(
+                "color: #059669; font-size: 11px; padding: 8px 0;"
+            )
+            self._stereo_mix_status.show()
+        else:
+            # Show warning status
+            self._stereo_mix_status.setText(
+                f"⚠️ Stereo Mix not available: {info}\n"
+                "System audio capture will fall back to microphone (captures both voices)."
+            )
+            self._stereo_mix_status.setStyleSheet(
+                "color: #b45309; font-size: 11px; padding: 8px 0;"
+            )
+            self._stereo_mix_status.show()
 
     # ── STT provider change ────────────────────────────────────────────────────
 
@@ -817,7 +866,7 @@ class SettingsWindow(QWidget):
         self._footer_widget.setObjectName("settings_footer")
 
         fl = QHBoxLayout(self._footer_widget)
-        fl.setContentsMargins(20, 12, 20, 12)
+        fl.setContentsMargins(24, 16, 24, 16)
 
         reset_btn = QPushButton("Reset Defaults")
         reset_btn.setObjectName("danger")
@@ -856,8 +905,8 @@ class SettingsWindow(QWidget):
         inner.setObjectName(inner_name)
 
         layout = QVBoxLayout(inner)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(10)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(14)
 
         scroll.setWidget(inner)
         ol.addWidget(scroll)
@@ -877,39 +926,114 @@ class SettingsWindow(QWidget):
             QTabBar::tab {{
                 background: transparent;
                 color: {t['text3']};
-                padding: 11px 18px;
+                padding: 12px 20px;
                 border: none;
                 font-size: 12px;
                 font-weight: 700;
-                margin-right: 1px;
+                margin-right: 2px;
+                border-radius: 8px 8px 0px 0px;
             }}
             QTabBar::tab:selected {{
                 background: {t['code_bg']};
                 color: {t['text']};
-                border-bottom: 2px solid {t['accent']};
+                border-bottom: 3px solid {t['accent']};
+                padding-bottom: 9px;
             }}
             QTabBar::tab:hover {{
-                background: {t['code_bg']};
-                color: {t['accent']};
+                background: {t['bg3']};
+                color: {t['text']};
             }}
             QLabel#section {{
-                color: {t['text3']};
-                font-size: 11px;
-                letter-spacing: 0;
-                font-weight: 700;
-                padding-top: 12px;
+                color: {t['accent']};
+                font-size: 10px;
+                letter-spacing: 1.2px;
+                font-weight: 800;
+                padding-top: 16px;
+                padding-bottom: 6px;
                 background: transparent;
             }}
             QLabel#note_label {{
                 color: {t['text2']};
                 font-size: 12px;
+                line-height: 18px;
+                padding: 6px 0px;
                 background: transparent;
             }}
             QLabel#value_label {{
-                color: {t['accent']};
+                color: {t['bg2']};
+                background: {t['accent']};
+                font-size: 13px;
+                font-weight: 700;
+                min-width: 48px;
+                padding: 4px 12px;
+                border-radius: 6px;
+            }}
+
+            QToolTip {{
+                background: {t['code_bg']};
+                color: {t['text']};
+                border: 1px solid {t['border']};
+                border-radius: 6px;
+                padding: 8px 12px;
                 font-size: 12px;
-                min-width: 42px;
-                background: transparent;
+            }}
+
+            QScrollBar:vertical {{
+                background: {t['bg2']};
+                width: 12px;
+                border: none;
+                border-radius: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {t['text3']};
+                min-height: 30px;
+                border-radius: 6px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {t['accent']};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+
+            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{
+                border-color: {t['accent']};
+                background: {t['bg3']};
+            }}
+
+            QSlider::groove:horizontal {{
+                background: {t['bg3']};
+                height: 6px;
+                border-radius: 3px;
+            }}
+            QSlider::handle:horizontal {{
+                background: {t['accent']};
+                width: 18px;
+                height: 18px;
+                margin: -6px 0;
+                border-radius: 9px;
+                border: 2px solid {t['bg2']};
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {t['accent_hover']};
+            }}
+            QSlider::sub-page:horizontal {{
+                background: {t['accent']};
+                border-radius: 3px;
+            }}
+
+            QFrame#h_sep {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 transparent,
+                    stop:0.1 {t['border']},
+                    stop:0.9 {t['border']},
+                    stop:1 transparent
+                );
+                border: none;
+                max-height: 1px;
+                margin: 16px 0px;
             }}
         """)
 
@@ -1334,9 +1458,6 @@ class SettingsWindow(QWidget):
 
             # Show/hide API key fields with smooth animation
             self._apply_plan_restrictions(silent=False)
-
-            # Show inline success feedback
-            self._show_byok_status_feedback(checked)
 
             print(f"[settings] BYOK {'enabled' if checked else 'disabled'} - config updated, UI refreshed")
 

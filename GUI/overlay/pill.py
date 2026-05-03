@@ -234,17 +234,19 @@ class PillWindow(QWidget):
         row.addSpacing(4)
 
         # Action buttons ────────────────────────────────────────────────────────
-        self._btn_capture = self._make_btn("📸", "Capture", self.sig_capture, width=74)
+        self._btn_capture = self._make_btn("📸", "Capture", self.sig_capture, width=80)
         row.addWidget(self._btn_capture)
 
         self._badge = QLabel("0")
         self._badge.setObjectName("badge_lbl")
         self._badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._badge.setFixedSize(18, 18)  # Fixed size prevents layout shift
         self._badge.setVisible(False)
         row.addWidget(self._badge)
 
-        self._btn_solve   = self._make_btn("⚡", "Solve",   self.sig_solve,   width=70)
-        self._btn_analyze = self._make_btn("🖥", "Analyze", self.sig_analyze, width=78)
+        # Fixed width to accommodate "Solve" and "Solving…"
+        self._btn_solve   = self._make_btn("⚡", "Solve",   self.sig_solve,   width=85)
+        self._btn_analyze = self._make_btn("🖥", "Analyze", self.sig_analyze, width=85)
         row.addWidget(self._btn_solve)
         row.addWidget(self._btn_analyze)
 
@@ -253,7 +255,8 @@ class PillWindow(QWidget):
         row.addSpacing(4)
 
         # Interview ─────────────────────────────────────────────────────────────
-        self._btn_interview = self._make_btn("🎙", "Meeting", self.sig_interview, width=88)
+        # Fixed width to accommodate all states: "Meeting" / "Listening" / "Stop"
+        self._btn_interview = self._make_btn("🎙", "Meeting", self.sig_interview, width=95)
         row.addWidget(self._btn_interview)
 
         row.addSpacing(4)
@@ -303,9 +306,8 @@ class PillWindow(QWidget):
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.clicked.connect(signal)
         if width:
-            # Use minimum width instead of fixed to handle DPI scaling better
-            btn.setMinimumWidth(width)
-            btn.setSizePolicy(btn.sizePolicy().horizontalPolicy(), btn.sizePolicy().verticalPolicy())
+            # Use FIXED width to prevent layout reflow when text changes
+            btn.setFixedWidth(width)
         return btn
 
     def _add_shadow(self):
@@ -355,12 +357,46 @@ class PillWindow(QWidget):
             self._timer_lbl.setToolTip("")
 
     def set_queue_count(self, count: int):
+        """Update queue count badge with smooth fade animation."""
+        if self._queue_count == count:
+            return  # No change, skip update
+
         self._queue_count = count
-        self._badge.setText(str(count))
-        self._badge.setVisible(count > 0)
+
+        # Smooth fade transition for badge
+        if count > 0:
+            if not self._badge.isVisible():
+                # Badge appearing - fade in
+                self._badge.setText(str(count))
+                self._badge.setVisible(True)
+                self._badge.setStyleSheet(f"""
+                    QLabel {{
+                        background: {_C['accent']};
+                        color: white;
+                        font-size: 8px;
+                        font-weight: 700;
+                        padding: 1px 5px;
+                        border-radius: 7px;
+                        min-width: 14px;
+                    }}
+                """)
+            else:
+                # Badge updating - just change text
+                self._badge.setText(str(count))
+        else:
+            # Badge disappearing - fade out
+            self._badge.setVisible(False)
 
     def set_recording(self, recording: bool):
+        """Update recording state without causing layout reflow."""
+        if self._recording == recording:
+            return  # No change
+
         self._recording = recording
+
+        # Block signals during update to prevent multiple redraws
+        self._btn_interview.blockSignals(True)
+
         if recording:
             self._btn_interview.setStyleSheet(_STYLE_RECORD)
             self._btn_interview.setText("🔴  Stop")
@@ -368,8 +404,18 @@ class PillWindow(QWidget):
             self._btn_interview.setStyleSheet(_STYLE_NORMAL)
             self._btn_interview.setText("🎙  Meeting")
 
+        self._btn_interview.blockSignals(False)
+
     def set_continuous_mode(self, active: bool):
+        """Update interview mode state without causing layout reflow."""
+        if self._interview_mode == active:
+            return  # No change
+
         self._interview_mode = active
+
+        # Block signals during update
+        self._btn_interview.blockSignals(True)
+
         if active:
             self._btn_interview.setStyleSheet(_STYLE_GREEN)
             self._btn_interview.setText("🎙  Listening")
@@ -381,22 +427,30 @@ class PillWindow(QWidget):
             self.ticker.set_user_positioned(False)
             self.ticker.hide_interview_mode()
 
+        self._btn_interview.blockSignals(False)
+
     def set_solving(self, solving: bool, mode: str = "solve"):
+        """Update solving state without causing layout reflow."""
+        if self._solving == solving:
+            return  # No change
+
         self._solving = solving
 
+        # Update status dot
         self._dot.setStyleSheet(
             f"color: {_C['dot_busy']}; font-size: 6px;"
             if solving else
             f"color: {_C['dot_idle']}; font-size: 6px;"
         )
 
+        # Block signals during button update
+        self._btn_solve.blockSignals(True)
+
         if mode == "interview":
             self._btn_solve.setText("⚡  Solve")
             self._btn_solve.setStyleSheet(_STYLE_NORMAL)
             self._btn_solve.setEnabled(True)
-            return
-
-        if solving:
+        elif solving:
             self._btn_solve.setText("⏳  Solving…")
             self._btn_solve.setStyleSheet(_STYLE_SOLVING)
             self._btn_solve.setEnabled(False)
@@ -404,6 +458,8 @@ class PillWindow(QWidget):
             self._btn_solve.setText("⚡  Solve")
             self._btn_solve.setStyleSheet(_STYLE_NORMAL)
             self._btn_solve.setEnabled(True)
+
+        self._btn_solve.blockSignals(False)
 
     def set_audio_level(self, level: float):
         if self._interview_mode:

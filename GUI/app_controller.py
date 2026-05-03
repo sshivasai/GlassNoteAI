@@ -249,6 +249,7 @@ class AppController(QObject):
         hotkey_manager.register("solve",          lambda: self._sig_solve.emit())
         hotkey_manager.register("analyze",        lambda: self._sig_analyze.emit())
         hotkey_manager.register("interview",      lambda: self._sig_interview.emit())
+        hotkey_manager.register("clear_queue",    self._on_remove_last_screenshot)
         hotkey_manager.register("toggle_overlay", lambda: self._sig_toggle_overlay.emit())
         hotkey_manager.register("end_session",    lambda: self._sig_end_session.emit())
         hotkey_manager.register("prev_history",   lambda: self._sig_prev_history.emit())
@@ -453,6 +454,13 @@ class AppController(QObject):
         if session_manager.is_active():
             self._queue.add(b64)
 
+    def _on_remove_last_screenshot(self):
+        """Remove the last screenshot from the queue (undo capture). Silent - just updates count."""
+        if not session_manager.is_active():
+            return
+        count = self._queue.remove_last()
+        print(f"[app] Removed last screenshot — queue={count}")
+
     # ── Solve ──────────────────────────────────────────────────────────────────
 
     def _on_solve(self):
@@ -551,7 +559,12 @@ class AppController(QObject):
         print(f"[app] Interview mode started — source={source}")
 
     def _stop_continuous_recording(self):
-        """Exit interview mode by closing the gate (pipeline stays warm)."""
+        """
+        Exit interview mode - pause recording but keep connections warm.
+
+        IMPORTANT: Uses pause() not stop_recording() to keep WebSocket alive.
+        This avoids cold-start latency when restarting interview mode.
+        """
         self._recording = False
         self._silence_timer.stop()
 
@@ -565,11 +578,14 @@ class AppController(QObject):
             if text and text.strip():
                 self._on_transcript_ready(text.strip())
 
-        self._audio.pause()   # close gate; keeps STT WebSocket alive
+        # Use pause() to close gate but keep STT WebSocket alive
+        # This prevents cold-start latency on resume
+        self._audio.pause()
+
         self.pill.set_recording(False)
         self.pill.set_solving(False, mode="solve")
-        self.pill.set_continuous_mode(False)   # Fix 3: hide ticker window
-        print("[app] Interview mode stopped")
+        self.pill.set_continuous_mode(False)
+        print("[app] Interview mode paused (WebSocket kept alive for fast resume)")
 
 
     # ── STT warm connection ────────────────────────────────────────────────────

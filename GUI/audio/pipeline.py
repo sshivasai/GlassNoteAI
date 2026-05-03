@@ -617,10 +617,13 @@ class AudioPipeline(QThread):
           • _last_speech_time  ← ONLY when silence clock is NOT locked
           • partial_transcript signal  → pill ticker
 
-        The lock guard is the key change for OpenAI Realtime correctness:
-        speech_stopped locks the clock; completed calls _on_partial but
-        the clock is already locked so it is not reset.
+        IMPORTANT: Skip processing when gated (interview mode paused).
+        This prevents transcriptions from appearing when mode is off.
         """
+        # Skip if gated (interview mode paused)
+        if self._gated:
+            return
+
         word_count = len(text.strip().split())
         if word_count >= 3:
             was_silent = not self._has_meaningful_speech

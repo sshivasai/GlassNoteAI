@@ -61,6 +61,23 @@ class ScreenshotQueue:
         if self._on_count_change:
             self._on_count_change(0)
 
+    def remove_last(self) -> int:
+        """
+        Remove the most recently added screenshot from the queue.
+
+        Returns:
+            int: New queue count after removal.
+        """
+        with self._lock:
+            if self._queue:
+                removed = self._queue.pop()
+                print(f"[queue] Removed: {removed.label}")
+            count = len(self._queue)
+
+        if self._on_count_change:
+            self._on_count_change(count)
+        return count
+
     def count(self) -> int:
         with self._lock:
             return len(self._queue)

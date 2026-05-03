@@ -892,6 +892,7 @@ class SessionSetupWindow(QWidget):
         Start session with server-side plan verification + session registration.
 
         Fixed flow (BUG-2, BUG-7, PERF-4):
+        0. Check Stereo Mix availability (if audio_source requires it)
         1. Check for stored JWT token
         2. Background: GET /api/auth/me -> verify plan + live quota
         3. Background: POST /api/sessions/start -> register session
@@ -903,6 +904,50 @@ class SessionSetupWindow(QWidget):
         provider, model_id = self._get_selected_provider_model()
         cfg = config.load_config()
         t   = self._tok()
+
+        # ── Step 0: Check Stereo Mix (if needed) ──────────────────────────────
+        # Only check if user has selected system or both audio sources
+        audio_source = cfg.get("audio_source", "system")
+        suppress_stereo_warning = cfg.get("suppress_stereo_mix_warning", False)
+
+        from audio.stereo_mix_checker import (
+            check_stereo_mix_available,
+            should_check_stereo_mix,
+            get_warning_message,
+            get_stereo_mix_instructions
+        )
+
+        if should_check_stereo_mix(audio_source) and not suppress_stereo_warning:
+            available, info = check_stereo_mix_available()
+            if not available:
+                print(f"[session] Stereo Mix not available: {info}")
+                # Show warning dialog
+                from session.stereo_mix_warning_dialog import show_stereo_mix_warning
+                warning_msg = get_warning_message(audio_source)
+                instructions = get_stereo_mix_instructions()
+
+                choice, suppress_future = show_stereo_mix_warning(
+                    warning_msg,
+                    instructions,
+                    parent=self
+                )
+
+                # Save suppress preference if user checked it
+                if suppress_future:
+                    cfg["suppress_stereo_mix_warning"] = True
+                    config.save_config(cfg)
+                    print("[session] Stereo Mix warning suppressed for future sessions")
+
+                # Handle user choice
+                if choice == "settings":
+                    # User wants to change audio source in Settings
+                    self.open_settings.emit()
+                    return
+                elif choice == "cancel":
+                    # User canceled - stay on session setup
+                    return
+                # If choice == "continue", proceed to start session
+                print("[session] User chose to continue without Stereo Mix")
 
         token = self._get_token(cfg)
         if not token:
