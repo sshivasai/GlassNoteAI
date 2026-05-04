@@ -249,9 +249,9 @@ async def proxy_anthropic(
     body_bytes = await request.body()
     try:
         body_json = json.loads(body_bytes)
-        model = body_json.get("model", "claude-haiku-4-5")
+        model = body_json.get("model", "claude-haiku-4-5-20251001")
     except (json.JSONDecodeError, AttributeError):
-        model = "claude-haiku-4-5"
+        model = "claude-haiku-4-5-20251001"
 
     # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
     _check_model_access(user.get("plan", "free"), model)
@@ -742,9 +742,9 @@ async def _log_llm_usage(
 
     # Rough cost estimation ($/1M tokens, conservative)
     _COST_PER_1M_IN = {
-        "claude-opus-4-5":    15.00,
-        "claude-sonnet-4-5":   3.00,
-        "claude-haiku-4-5":    0.25,
+        "claude-opus-4-5-20251101":    15.00,
+        "claude-sonnet-4-5-20250929":   3.00,
+        "claude-haiku-4-5-20251001":    0.25,
         "gpt-4o":              2.50,
         "gpt-4o-mini":         0.15,
         "gpt-4.1":             2.00,
@@ -760,9 +760,9 @@ async def _log_llm_usage(
         "gpt-oss-120b":        0.60,
     }
     _COST_PER_1M_OUT = {
-        "claude-opus-4-5":    75.00,
-        "claude-sonnet-4-5":  15.00,
-        "claude-haiku-4-5":    1.25,
+        "claude-opus-4-5-20251101":    75.00,
+        "claude-sonnet-4-5-20250929":  15.00,
+        "claude-haiku-4-5-20251001":    1.25,
         "gpt-4o":             10.00,
         "gpt-4o-mini":         0.60,
         "gpt-4.1":             8.00,

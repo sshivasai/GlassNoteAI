@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 class StartSessionRequest(BaseModel):
     """Request to start a new metered session."""
     company: str = ""
-    model: str = "claude-haiku-4-5"
+    model: str = "claude-haiku-4-5-20251001"
 
 class SessionInfo(BaseModel):
     """Session information response."""

@@ -19,9 +19,9 @@ from datetime import datetime, timezone
 # ── All available models ──────────────────────────────────────────────────────
 
 ALL_MODELS = [
-    ("Claude Opus 4.5  [Anthropic — Best]",     "anthropic", "claude-opus-4-5"),
-    ("Claude Sonnet 4.5  [Anthropic — Fast]",   "anthropic", "claude-sonnet-4-5"),
-    ("Claude Haiku 4.5  [Anthropic — Fastest]", "anthropic", "claude-haiku-4-5"),
+    ("Claude Opus 4.5  [Anthropic — Best]",     "anthropic", "claude-opus-4-5-20251101"),
+    ("Claude Sonnet 4.5  [Anthropic — Fast]",   "anthropic", "claude-sonnet-4-5-20250929"),
+    ("Claude Haiku 4.5  [Anthropic — Fastest]", "anthropic", "claude-haiku-4-5-20251001"),
     ("GPT-4o  [OpenAI — Best]",                 "openai",    "gpt-4o"),
     ("GPT-4o Mini  [OpenAI — Fast]",            "openai",    "gpt-4o-mini"),
     ("GPT-4.1  [OpenAI]",                       "openai",    "gpt-4.1"),
@@ -38,7 +38,7 @@ ALL_MODELS = [
 ]
 
 _BASIC_MODEL_IDS = {
-    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
     "gpt-4o-mini",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
@@ -48,7 +48,7 @@ _BASIC_MODEL_IDS = {
 }
 
 _STANDARD_MODEL_IDS = _BASIC_MODEL_IDS | {
-    "claude-sonnet-4-5",
+    "claude-sonnet-4-5-20250929",
     "gpt-4o",
     "gpt-4.1",
     "gpt-4-turbo",
@@ -57,7 +57,7 @@ _STANDARD_MODEL_IDS = _BASIC_MODEL_IDS | {
 }
 
 _ALL_MODEL_IDS = _STANDARD_MODEL_IDS | {
-    "claude-opus-4-5",
+    "claude-opus-4-5-20251101",
     "o1",
     "o1-mini",
     "gpt-5.4",

@@ -35,9 +35,9 @@ TEXT_ONLY_MODELS = {
 
 VISION_MODELS = {
     # Anthropic Claude (all variants support vision)
-    "claude-opus-4-5",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
+    "claude-opus-4-5-20251101",
+    "claude-sonnet-4-5-20250929",
+    "claude-haiku-4-5-20251001",
 
     # OpenAI GPT-4/4.1/4o family (vision-capable)
     "gpt-4o",
@@ -56,7 +56,7 @@ VISION_MODELS = {
 # When a text-only model is selected but images are needed, use this mapping.
 
 DEFAULT_VISION_FALLBACK = {
-    "anthropic": "claude-haiku-4-5",    # Fast, cheap, vision-capable
+    "anthropic": "claude-haiku-4-5-20251001",    # Fast, cheap, vision-capable
     "openai":    "gpt-4o-mini",         # Fast, cheap, vision-capable
     "cerebras":  "gpt-4o-mini",         # Fallback to OpenAI (Cerebras has no vision)
 }

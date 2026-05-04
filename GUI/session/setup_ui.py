@@ -521,7 +521,7 @@ class SessionSetupWindow(QWidget):
         if 0 <= idx < len(self._model_map):
             _, provider, model = self._model_map[idx]
             return provider, model
-        return "anthropic", "claude-haiku-4-5"
+        return "anthropic", "claude-haiku-4-5-20251001"
 
     # ── Theme ──────────────────────────────────────────────────────────────────
 

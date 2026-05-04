@@ -504,7 +504,7 @@ _CEREBRAS_MODELS = {
     "best":     "gpt-oss-120b",
 }
 _DEFAULT_MODELS = {
-    "anthropic": "claude-opus-4-5-20251101",
+    "anthropic": "claude-haiku-4-5-20251001",
     "openai":    "gpt-4o",
     "cerebras":  "llama3.1-8b",
 }
@@ -903,7 +903,7 @@ class LLMClient:
 
     def _resolve_model(self, cfg, provider, messages, mode) -> str:
         if provider == "anthropic":
-            user_model = cfg.get("anthropic_model", "claude-opus-4-5-20251101")
+            user_model = cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
         elif provider == "cerebras":
             user_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:

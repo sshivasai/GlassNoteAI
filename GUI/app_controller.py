@@ -1388,7 +1388,7 @@ class AppController(QObject):
         # Resolve model name for perf tracking (mirrors logic in llm/client.py)
         provider = cfg.get("selected_provider", "anthropic")
         if provider == "anthropic":
-            self._dispatch_model = cfg.get("anthropic_model", "claude-opus-4-5")
+            self._dispatch_model = cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
         elif provider == "cerebras":
             self._dispatch_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:

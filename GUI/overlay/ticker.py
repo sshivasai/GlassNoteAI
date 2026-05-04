@@ -363,13 +363,21 @@ class TranscriptTicker(QWidget):
         if not text:
             return
 
-        # FIX (TICKER-2): Compare displayed words vs full incoming text
+        # FIX (TICKER-2 + TICKER-3): Compare displayed words vs full incoming text
         # _displayed_partial = what's SHOWN so far (built word-by-word by timer)
         # text = full incoming text from STT
         # We queue ONLY the delta between what's shown and what's new
 
         displayed_words = self._displayed_partial.split() if self._displayed_partial else []
         incoming_words = text.split()
+
+        # TICKER-3 FIX: Detect if incoming text is SHORTER than displayed
+        # This indicates STT was reset (new segment started) - reset our state too
+        if len(incoming_words) < len(displayed_words):
+            # STT reset detected - start fresh
+            self._displayed_partial = ""
+            self._word_queue.clear()
+            displayed_words = []
 
         # Only queue NEW words that haven't been displayed yet
         if len(incoming_words) > len(displayed_words):
@@ -393,9 +401,12 @@ class TranscriptTicker(QWidget):
             self._partial_lbl = None
 
         self._segments.append(final_text)
-        # FIX: Reset _displayed_partial AFTER appending segment
-        # This ensures the next update_partial() starts fresh
+
+        # CRITICAL FIX: Fully reset all state to prevent stale partials
+        # from causing words to replay on next segment
         self._displayed_partial = ""
+        self._word_queue.clear()  # Clear any queued words from race conditions
+        self._stream_timer.stop()  # Stop timer to ensure clean start
 
         self._content.add_check()
         self._content.add_dot()

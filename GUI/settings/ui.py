@@ -414,7 +414,7 @@ class SettingsWindow(QWidget):
 
         # Anthropic dropdown
         self.anthropic_model.clear()
-        self.anthropic_model.addItems(anthro_models if anthro_models else ["claude-haiku-4-5"])
+        self.anthropic_model.addItems(anthro_models if anthro_models else ["claude-haiku-4-5-20251001"])
 
         # OpenAI dropdown
         self.openai_model.clear()
@@ -1216,7 +1216,7 @@ class SettingsWindow(QWidget):
 
         # LLM Models — select saved value (falls back to first if not in list)
         idx = self.anthropic_model.findText(
-            c.get("anthropic_model", "claude-haiku-4-5")
+            c.get("anthropic_model", "claude-haiku-4-5-20251001")
         )
         self.anthropic_model.setCurrentIndex(max(0, idx))
 

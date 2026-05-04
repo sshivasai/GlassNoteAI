@@ -23,9 +23,9 @@ from typing import Optional
 # API pricing per 1M tokens (approximate, mid-2025)
 _PRICING = {
     # model_id: (input_cost_per_1M, output_cost_per_1M)
-    "claude-opus-4-5":    (15.00, 75.00),
-    "claude-sonnet-4-5":  (3.00,  15.00),
-    "claude-haiku-4-5":   (0.25,  1.25),
+    "claude-opus-4-5-20251101":    (15.00, 75.00),
+    "claude-sonnet-4-5-20250929":  (3.00,  15.00),
+    "claude-haiku-4-5-20251001":   (0.25,  1.25),
     "gpt-4o":             (2.50,  10.00),
     "gpt-4o-mini":        (0.15,  0.60),
     "gpt-4.1":            (2.00,  8.00),

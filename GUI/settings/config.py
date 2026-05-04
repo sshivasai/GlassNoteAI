@@ -93,7 +93,7 @@ DEFAULTS = {
 
     # ── Model settings ─────────────────────────────────────────
     "selected_provider":  "anthropic",
-    "anthropic_model":    "claude-opus-4-5",
+    "anthropic_model":    "claude-haiku-4-5-20251001",
     "openai_model":       "gpt-4o",
     "cerebras_model":     "llama3.1-8b",
     # User-configurable ceiling. Mode-specific caps in _get_max_tokens()

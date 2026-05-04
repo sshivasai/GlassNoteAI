@@ -153,9 +153,9 @@ def sanitize_url(url: str) -> str:
 
 _VALID_MODELS = {
     "anthropic": {
-        "claude-opus-4-5", "claude-opus-4-7",
-        "claude-sonnet-4-5", "claude-sonnet-4-6",
-        "claude-haiku-4-5",
+        "claude-opus-4-5-20251101", "claude-opus-4-6", "claude-opus-4-7",
+        "claude-sonnet-4-5-20250929", "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
     },
     "openai": {
         "gpt-4o", "gpt-4o-mini", "gpt-4-turbo",

@@ -43,9 +43,9 @@ _last_fetch: float = 0.0
 # Users enable BYOK via the toggle-byok API endpoint.
 
 _FALLBACK_ALL_MODELS = [
-    {"display_name": "Claude Opus 4.5  [Anthropic — Best]",     "provider": "anthropic", "model_id": "claude-opus-4-5"},
-    {"display_name": "Claude Sonnet 4.5  [Anthropic — Fast]",   "provider": "anthropic", "model_id": "claude-sonnet-4-5"},
-    {"display_name": "Claude Haiku 4.5  [Anthropic — Fastest]", "provider": "anthropic", "model_id": "claude-haiku-4-5"},
+    {"display_name": "Claude Opus 4.5  [Anthropic — Best]",     "provider": "anthropic", "model_id": "claude-opus-4-5-20251101"},
+    {"display_name": "Claude Sonnet 4.5  [Anthropic — Fast]",   "provider": "anthropic", "model_id": "claude-sonnet-4-5-20250929"},
+    {"display_name": "Claude Haiku 4.5  [Anthropic — Fastest]", "provider": "anthropic", "model_id": "claude-haiku-4-5-20251001"},
     {"display_name": "GPT-4o  [OpenAI — Best]",                 "provider": "openai",    "model_id": "gpt-4o"},
     {"display_name": "GPT-4o Mini  [OpenAI — Fast]",            "provider": "openai",    "model_id": "gpt-4o-mini"},
     {"display_name": "GPT-4.1  [OpenAI]",                       "provider": "openai",    "model_id": "gpt-4.1"},
@@ -61,9 +61,9 @@ _FALLBACK_ALL_MODELS = [
     {"display_name": "GPT-OSS 120B  [Cerebras — Fast]",          "provider": "cerebras",  "model_id": "gpt-oss-120b"},
 ]
 
-_BASIC_IDS    = {"claude-haiku-4-5","gpt-4o-mini","gpt-4.1-mini","gpt-4.1-nano","gpt-5.4-nano","llama-3.2-1b-instant","llama3.1-8b"}
-_STANDARD_IDS = _BASIC_IDS | {"claude-sonnet-4-5","gpt-4o","gpt-4.1","gpt-4-turbo","gpt-5.4-mini","gpt-oss-120b"}
-_ALL_IDS      = _STANDARD_IDS | {"claude-opus-4-5","o1","o1-mini","gpt-5.4"}
+_BASIC_IDS    = {"claude-haiku-4-5-20251001","gpt-4o-mini","gpt-4.1-mini","gpt-4.1-nano","gpt-5.4-nano","llama-3.2-1b-instant","llama3.1-8b"}
+_STANDARD_IDS = _BASIC_IDS | {"claude-sonnet-4-5-20250929","gpt-4o","gpt-4.1","gpt-4-turbo","gpt-5.4-mini","gpt-oss-120b"}
+_ALL_IDS      = _STANDARD_IDS | {"claude-opus-4-5-20251101","o1","o1-mini","gpt-5.4"}
 
 _FALLBACK_PLANS = {
     "free": {

@@ -67,7 +67,7 @@ class SessionContext:
     company: str = ""
     extra_prompt: str = ""
     provider: str = "anthropic"
-    model: str = "claude-opus-4-5"
+    model: str = "claude-haiku-4-5-20251001"
     max_tokens: int = 2048
     language: str = "English"
     simple_language: bool = False
@@ -307,7 +307,7 @@ class SessionContext:
             company=data.get("company", ""),
             extra_prompt=data.get("extra_prompt", ""),
             provider=data.get("provider", "anthropic"),
-            model=data.get("model", "claude-opus-4-5"),
+            model=data.get("model", "claude-haiku-4-5-20251001"),
             max_tokens=data.get("max_tokens", 2048),
             language=data.get("language", "English"),
             simple_language=data.get("simple_language", False),
@@ -480,7 +480,7 @@ class SessionManager:
             language=language,
             simple_language=simple_language,
             provider=cfg.get("selected_provider", "anthropic"),
-            model=cfg.get("anthropic_model", "claude-opus-4-5")
+            model=cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
                   if cfg.get("selected_provider") == "anthropic"
                   else cfg.get("openai_model", "gpt-4o"),
             max_tokens=cfg.get("max_tokens", 2048),
