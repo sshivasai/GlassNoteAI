@@ -25,24 +25,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import window_hide
 
 
-# ── Design tokens ──────────────────────────────────────────────────────────────
+# ── Modern Design Tokens ──────────────────────────────────────────────────────
 _T = {
-    "bg":             "rgba(9, 11, 16, 0.96)",
-    "bg_soft":        "rgba(56, 189, 248, 0.08)",
-    "border":         "rgba(148, 163, 184, 0.16)",
-    "border_active":  "rgba(56, 189, 248, 0.28)",
-    "text_partial":   "#d7e2f1",
-    "text_committed": "#38bdf8",
-    "text_status":    "#34d399",
-    "dot_sep":        "#3b4658",
-    "success":        "#34d399",
-    "accent":         "#38bdf8",
-    "amber":          "#fbbf24",
-    "red":            "#fb7185",
-    "silence_track":  "rgba(148, 163, 184, 0.14)",
-    "silence_low":    "#fbbf24",
-    "silence_mid":    "#38bdf8",
-    "silence_high":   "#34d399",
+    "bg":             "rgba(10, 12, 20, 0.92)",
+    "bg_soft":        "rgba(34, 211, 238, 0.12)",
+    "border":         "rgba(148, 163, 184, 0.12)",
+    "border_active":  "rgba(34, 211, 238, 0.35)",
+    "text_partial":   "#e0e8f5",
+    "text_committed": "#22d3ee",
+    "text_status":    "#10b981",
+    "dot_sep":        "#3d4658",
+    "success":        "#10b981",
+    "accent":         "#22d3ee",
+    "amber":          "#f59e0b",
+    "red":            "#ef4444",
+    "silence_track":  "rgba(148, 163, 184, 0.10)",
+    "silence_low":    "#f59e0b",
+    "silence_mid":    "#22d3ee",
+    "silence_high":   "#10b981",
 }
 
 _SCROLL_CSS = """
@@ -72,15 +72,13 @@ class _TickerContent(QWidget):
         self.setFixedWidth(max(w, 32))
 
     def _make_lbl(self, text: str, color: str, bold: bool = False,
-                  font_size: int = 10) -> QLabel:
+                  font_size: int = 11) -> QLabel:
         lbl = QLabel(text)
-        lbl.setFont(QFont(
-            "Segoe UI", font_size,
-            QFont.Weight.Bold if bold else QFont.Weight.Normal,
-        ))
+        weight = QFont.Weight.DemiBold if bold else QFont.Weight.Medium
+        lbl.setFont(QFont("Segoe UI", font_size, weight))
         lbl.setStyleSheet(
             f"color:{color}; background:transparent; border:none; "
-            f"padding:0 4px; white-space:nowrap;"
+            f"padding:0 5px; white-space:nowrap; letter-spacing:0.3px;"
         )
         lbl.setFixedHeight(self.CONTENT_H)
         lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -148,28 +146,28 @@ class _StatusBadge(QWidget):
         lay.setSpacing(4)
 
         self._icon_lbl = QLabel("●")
-        self._icon_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self._icon_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         self._icon_lbl.setStyleSheet(
-            f"background:{_T['bg_soft']}; border:1px solid {_T['border_active']}; "
-            f"border-radius:9px; color:{_T['text_status']}; padding:1px 5px;"
+            f"background:{_T['bg_soft']}; border:1.5px solid {_T['border_active']}; "
+            f"border-radius:10px; color:{_T['text_status']}; padding:2px 6px;"
         )
         self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._icon_lbl)
 
         self._text_lbl = QLabel("")
-        self._text_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._text_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         self._text_lbl.setStyleSheet(
             f"background:transparent; border:none; "
-            f"color:{_T['text_status']}; white-space:nowrap;"
+            f"color:{_T['text_status']}; white-space:nowrap; letter-spacing:0.3px;"
         )
         self._text_lbl.setVisible(False)
         lay.addWidget(self._text_lbl)
 
     def set_state(self, icon: str, label: str, color: str):
-        self._icon_lbl.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self._icon_lbl.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
         self._icon_lbl.setStyleSheet(
-            f"background:{_T['bg_soft']}; border:1px solid {_T['border_active']}; "
-            f"border-radius:9px; color:{color}; padding:1px 5px;"
+            f"background:{_T['bg_soft']}; border:1.5px solid {_T['border_active']}; "
+            f"border-radius:10px; color:{color}; padding:2px 6px;"
         )
         self._icon_lbl.setText(icon)
 
@@ -177,11 +175,11 @@ class _StatusBadge(QWidget):
             self._text_lbl.setText(label)
             self._text_lbl.setStyleSheet(
                 f"background:transparent; border:none; "
-                f"color:{color}; white-space:nowrap;"
+                f"color:{color}; white-space:nowrap; letter-spacing:0.3px;"
             )
             self._text_lbl.setVisible(True)
             fm     = QFontMetrics(self._text_lbl.font())
-            needed = fm.horizontalAdvance(label) + 34
+            needed = fm.horizontalAdvance(label) + 38
             self.setFixedWidth(min(needed, self.W_WIDE))
         else:
             self._text_lbl.setVisible(False)
@@ -263,8 +261,8 @@ class TranscriptTicker(QWidget):
         self._root.setStyleSheet(f"""
             QWidget#ticker_root {{
                 background: {_T['bg']};
-                border: 1px solid {_T['border']};
-                border-radius: 18px;
+                border: 1.5px solid {_T['border']};
+                border-radius: 20px;
             }}
         """)
         outer.addWidget(self._root)
@@ -303,9 +301,9 @@ class TranscriptTicker(QWidget):
 
     def _add_shadow(self):
         sh = QGraphicsDropShadowEffect(self)
-        sh.setBlurRadius(26)
-        sh.setOffset(0, 6)
-        sh.setColor(QColor(0, 0, 0, 145))
+        sh.setBlurRadius(32)
+        sh.setOffset(0, 8)
+        sh.setColor(QColor(0, 0, 0, 180))
         self._root.setGraphicsEffect(sh)
 
     # ── Paint (silence bar) ────────────────────────────────────────────────────
@@ -378,9 +376,13 @@ class TranscriptTicker(QWidget):
             new_words = incoming_words[len(displayed_words):]
             self._word_queue.extend(new_words)
             if not self._stream_timer.isActive():
+                # Show first word immediately to eliminate lag between segments
+                self._stream_next_word()
                 self._stream_timer.start()
 
     def commit_segment(self, final_text: str):
+        # FIX: Flush queue but DON'T reset _displayed_partial yet
+        # This prevents new words from replaying on the next segment
         self._flush_word_queue()
 
         if self._partial_lbl is not None:
@@ -391,6 +393,8 @@ class TranscriptTicker(QWidget):
             self._partial_lbl = None
 
         self._segments.append(final_text)
+        # FIX: Reset _displayed_partial AFTER appending segment
+        # This ensures the next update_partial() starts fresh
         self._displayed_partial = ""
 
         self._content.add_check()
@@ -406,10 +410,22 @@ class TranscriptTicker(QWidget):
         if not self._word_queue:
             self._stream_timer.stop()
             return
-        word = self._word_queue.popleft()
-        self._displayed_partial = (
-            (self._displayed_partial + " " + word).strip()
-        )
+
+        # Adaptive draining: if queue is backed up, show 2-3 words per tick
+        # to prevent words from rushing out all at once
+        queue_len = len(self._word_queue)
+        words_to_show = 1
+        if queue_len > 8:
+            words_to_show = 3  # Heavy backlog
+        elif queue_len > 4:
+            words_to_show = 2  # Moderate backlog
+
+        for _ in range(min(words_to_show, len(self._word_queue))):
+            word = self._word_queue.popleft()
+            self._displayed_partial = (
+                (self._displayed_partial + " " + word).strip()
+            )
+
         self._show_partial(self._displayed_partial)
 
     def _flush_word_queue(self):

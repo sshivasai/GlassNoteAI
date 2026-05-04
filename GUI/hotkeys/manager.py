@@ -14,6 +14,7 @@ HOTKEYS = {
     "capture":       "ctrl+shift+c",   # Add screenshot to queue
     "solve":         "ctrl+shift+s",   # Solve queued screenshots
     "analyze":       "ctrl+shift+a",   # Instant capture + solve
+    "debug":         "ctrl+shift+d",   # Instant capture + debug/review code
     "interview":     "ctrl+shift+i",   # Start/stop audio recording
     "clear_queue":   "ctrl+shift+x",   # Clear screenshot queue
     "toggle_overlay":"ctrl+shift+h",   # Show/hide overlay

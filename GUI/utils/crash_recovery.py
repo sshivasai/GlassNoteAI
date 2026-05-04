@@ -16,8 +16,9 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextEdit
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 from datetime import datetime
+import os
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,6 +40,12 @@ class CrashRecoveryDialog(QDialog):
         self.setWindowTitle("Session Recovery")
         self.setModal(True)
         self.setMinimumWidth(500)
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setWindowFlags(
             Qt.WindowType.Dialog |
             Qt.WindowType.WindowCloseButtonHint

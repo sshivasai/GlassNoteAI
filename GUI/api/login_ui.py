@@ -80,6 +80,12 @@ class LoginWindow(QWidget):
         self.setWindowTitle("GlassNote - Sign In")
         self.setFixedWidth(440)
         self.setFont(QFont("Segoe UI", 11))
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint

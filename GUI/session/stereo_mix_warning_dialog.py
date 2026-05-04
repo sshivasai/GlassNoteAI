@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QCheckBox, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QIcon
 import sys
 import os
 
@@ -40,6 +40,12 @@ class StereoMixWarningDialog(QDialog):
         self.setWindowTitle("Stereo Mix Not Available")
         self.setModal(True)
         self.setFixedWidth(600)
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setWindowFlags(
             Qt.WindowType.Dialog |
             Qt.WindowType.WindowTitleHint |

@@ -60,6 +60,7 @@ class SessionContext:
         history (list[QAPair]): Conversation history for this session.
         active (bool): Whether this session is currently active.
         started_at (float): Unix timestamp when session started.
+        patterns_explained (list[str]): Patterns explained in this session (avoid repeating).
     """
     resume_text: str = ""
     job_description: str = ""
@@ -74,6 +75,7 @@ class SessionContext:
     active: bool = False
     started_at: float = 0.0
     id: str = ""   # Backend-assigned session UUID (obtained via /api/sessions/start)
+    patterns_explained: list[str] = field(default_factory=list)  # Track explained patterns
 
     def build_system_prompt(self) -> str:
         """
@@ -100,6 +102,7 @@ class SessionContext:
             self.extra_prompt,
             self.language,
             self.simple_language,
+            tuple(self.patterns_explained),  # Include patterns for freshness
         )
         # Return cached value if inputs haven't changed
         if (hasattr(self, "_cached_system_prompt")
@@ -159,6 +162,15 @@ class SessionContext:
                 f"{self.extra_prompt.strip()}"
             )
 
+        # ── Pattern tracking context ──────────────────────────────────────────
+        if self.patterns_explained:
+            parts.append(
+                "## Patterns Already Explained\n"
+                f"You've already explained these patterns in depth earlier this session: "
+                f"{', '.join(self.patterns_explained)}. "
+                f"If you use them again, just name them briefly — don't re-explain unless asked."
+            )
+
         result = "\n\n".join(parts)
 
         # Store in cache
@@ -182,6 +194,42 @@ class SessionContext:
         ))
         # Auto-persist after each Q&A so crash recovery has latest state
         _persist_session(self)
+
+    def mark_pattern_explained(self, pattern_name: str):
+        """
+        Mark a pattern as explained in this session to avoid repetition.
+
+        Args:
+            pattern_name (str): Name of the pattern (e.g., "Two-Pointer", "Dynamic Programming").
+        """
+        if pattern_name and pattern_name not in self.patterns_explained:
+            self.patterns_explained.append(pattern_name)
+            # Invalidate cached system prompt since patterns changed
+            self._cached_system_prompt = None
+            self._cached_system_prompt_key = None
+
+    def extract_patterns_from_answer(self, answer: str):
+        """
+        Simple heuristic to extract pattern names from an LLM answer.
+        Looks for common pattern names in the "Pattern Recognition" or "Primary Pattern" sections.
+
+        Args:
+            answer (str): The LLM-generated answer text.
+        """
+        # Common pattern names to look for
+        pattern_keywords = [
+            "Two-Pointer", "Two Pointer", "Sliding Window", "Fast & Slow Pointers",
+            "Dynamic Programming", "DFS", "BFS", "Backtracking", "Topological Sort",
+            "Binary Search", "Greedy", "Divide & Conquer", "Divide and Conquer",
+            "Hash Table", "Prefix Sum", "Monotonic Stack", "Monotonic Queue",
+            "Trie", "Union-Find", "Bit Manipulation", "Knapsack", "LCS", "LIS"
+        ]
+
+        for pattern in pattern_keywords:
+            # Look for pattern name in context like "Primary Pattern: Two-Pointer"
+            if pattern.lower() in answer.lower():
+                self.mark_pattern_explained(pattern)
+                break  # Only mark the first/primary pattern per answer
 
     def get_history_context(self) -> list[dict]:
         """

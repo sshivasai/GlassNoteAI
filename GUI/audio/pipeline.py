@@ -164,7 +164,9 @@ class AudioPipeline(QThread):
         cfg    = self._prefetched_cfg or config.load_config()
         source = cfg.get("audio_source", "system")
         self.start_recording(source=source)
-        self.pause()  # gate closed — pipeline stays warm but idle
+        # FIX: Just close the gate, don't call pause() which would keep
+        # connections warm now (no longer destroys them).
+        self._gated = True  # gate closed — pipeline warm but not dispatching
         print(f"[pipeline] Warm start complete — source={source}, gate=closed")
 
     def start_recording(self, source: str = "system"):
@@ -184,6 +186,10 @@ class AudioPipeline(QThread):
 
         self._reset_all_state()
         self._continuous_mode = True
+        # FIX: Open the gate so audio is processed (not just queued)
+        # Without this, audio flows to STT but _on_audio_chunk silently
+        # drops it if _gated=True from a previous pause().
+        self._gated = False
 
         # ── Start STT backend ──────────────────────────────────────────────────
         self._stt = self._create_stt(cfg)
@@ -273,57 +279,31 @@ class AudioPipeline(QThread):
 
     def pause(self):
         """
-        Stop audio flow to STT and reset state.
+        Close dispatch gate - keep all connections warm for instant resume.
 
-        CRITICAL FIX: Previously only set _gated=True, but audio already in
-        the STT WebSocket buffer would continue processing. Now we:
-        1. Stop the recorder (prevents new audio from reaching STT)
-        2. Close STT WebSocket (flushes buffer)
-        3. Voice gate is NOT stopped (will be restarted on resume)
+        FIX: Previously destroyed recorder + STT, causing 500-800ms cold start
+        on every resume. Now we only close the gate - audio continues flowing
+        to STT but transcripts are not dispatched to the LLM.
 
-        Trade-off: Resume is no longer instant (~500-800ms), but this fully
-        stops transcription when paused (no audio leaks).
+        This enables <10ms resume latency (just reopen the gate).
         """
         if self._gated:
             return
         self._gated = True
         self._reset_segment_state()
         self.partial_transcript.emit("")
-
-        # CRITICAL FIX: Stop recorder to prevent audio callback from firing
-        if self._recorder:
-            try:
-                self._recorder.stop()
-            except Exception as e:
-                print(f"[pipeline] Recorder stop error (non-fatal): {e}")
-            self._recorder = None
-
-        # CRITICAL FIX: Close STT to flush WebSocket buffer
-        # This prevents buffered audio from being transcribed after pause
-        if self._stt:
-            try:
-                # Close the WebSocket cleanly
-                if hasattr(self._stt, 'close'):
-                    self._stt.close()
-                # Stop any background threads
-                if hasattr(self._stt, 'stop'):
-                    self._stt.stop()
-            except Exception as e:
-                print(f"[pipeline] STT close error (non-fatal): {e}")
-            self._stt = None
-
-        print("[pipeline] ⏸ Paused (recorder stopped, STT closed)")
+        # ✅ Recorder keeps running
+        # ✅ STT WebSocket stays open
+        # ✅ Voice gate stays active (if enabled)
+        # ✅ Just stop dispatching transcripts
+        print("[pipeline] ⏸ Paused (gate closed, connections warm)")
 
     def resume(self):
         """
-        Restart recorder and STT to resume transcription.
+        Open dispatch gate - connections already warm, instant resume.
 
-        CRITICAL FIX: Previously just opened gate, but now we need to
-        restart the stopped recorder and reconnect STT WebSocket.
-
-        Trade-off: Resume is no longer instant (~500-800ms), but this ensures
-        no audio leaks through when paused. The warm-up time is acceptable
-        because connections are still pre-resolved (DNS cached).
+        FIX: Previously rebuilt recorder + STT (500-800ms). Now we just
+        open the gate - everything is already running.
         """
         if not self._gated:
             return
@@ -331,65 +311,25 @@ class AudioPipeline(QThread):
         self._reset_segment_state()
         self._last_dispatch_time = time.time()
 
-        # CRITICAL FIX: Restart recorder
-        cfg = config.load_config()
-        source = cfg.get("audio_source", "system")
+        # ✅ Recorder already running
+        # ✅ STT already connected
+        # ✅ Voice gate already active (if enabled)
+        # ✅ Just start dispatching again
 
-        self._recorder = AudioRecorder(
-            source=source,
-            on_level=lambda lvl: self.level_update.emit(lvl),
-            on_chunk=self._on_audio_chunk,
-            on_stereo_mix_warning=self._on_stereo_mix_warning,
-        )
+        print("[pipeline] ▶ Resumed (gate opened, <10ms)")
 
-        # P1 FIX: Restart voice gate conditionally (only for microphone mode)
-        if source == "microphone":
-            self._voice_gate = VoiceActivityGate(
-                on_user_started=self._on_user_started_speaking,
-                on_user_stopped=self._on_user_stopped_speaking,
-                hold_time=0.8,
-            )
-        else:
-            self._voice_gate = None
-
-        try:
-            self._recorder.start()
-            native_sr = self._recorder.get_native_sr()
-
-            # CRITICAL FIX: Reconnect STT WebSocket
-            self._stt = self._create_stt(cfg)
-            if self._stt and hasattr(self._stt, "start"):
-                self._stt.start(native_sr)
-
-            # Start voice gate if needed
-            gate_ok = False
-            if self._voice_gate:
-                gate_ok = self._voice_gate.start()
-                if not gate_ok:
-                    print("[pipeline] Voice gate unavailable on resume")
-                    self._voice_gate = None
-
-            print(
-                f"[pipeline] ▶ Resumed (recorder restarted, STT reconnected — "
-                f"source={source}, gate={'ON' if gate_ok else 'OFF'})"
-            )
-
-            # Flush any EndOfTurn that fired while gate was closed
-            if self._pending_smart_dispatch:
-                pending = self._pending_smart_dispatch
-                self._pending_smart_dispatch = ""
-                self._on_smart_dispatch(pending)
-
-        except Exception as e:
-            self.transcribe_error.emit(f"Resume failed: {e}")
-            self._gated = True  # Revert to paused state
-            print(f"[pipeline] Resume failed: {e}")
+        # Flush any EndOfTurn that fired while gate was closed
+        if self._pending_smart_dispatch:
+            pending = self._pending_smart_dispatch
+            self._pending_smart_dispatch = ""
+            self._on_smart_dispatch(pending)
 
     def is_running(self) -> bool:
         """True if the pipeline is started (audio flowing, even if gated)."""
-        return self._continuous_mode and bool(
-            self._recorder and self._recorder.is_recording()
-        )
+        # FIX: Only check _continuous_mode flag, not recorder state.
+        # After pause(), _recorder is None but pipeline is still "running"
+        # (just gated), so next toggle should call resume() not start_recording().
+        return self._continuous_mode
 
     def stop_and_transcribe(self):
         """Legacy compat."""

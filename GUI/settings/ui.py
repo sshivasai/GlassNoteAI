@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QFrame, QSpinBox, QDoubleSpinBox, QScrollArea, QStackedWidget
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtGui import QFont, QPixmap, QIcon
 import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -91,8 +91,14 @@ class SettingsWindow(QWidget):
     def _build_ui(self):
         """Constructs the settings tabs and connects UI components."""
         self.setWindowTitle("GlassNote - Settings")
-        self.setMinimumSize(640, 680)
-        self.setFont(QFont("Segoe UI", 11))
+        self.setMinimumSize(560, 640)  # Reduced width and height
+        self.setFont(QFont("Segoe UI", 10))  # Smaller font for compact UI
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -110,8 +116,8 @@ class SettingsWindow(QWidget):
         # Page 0: login wall
         wall = QWidget(); wall.setObjectName("login_wall")
         wl = QVBoxLayout(wall)
-        wl.setContentsMargins(60, 80, 60, 80)
-        wl.setSpacing(20)
+        wl.setContentsMargins(40, 60, 40, 60)  # Reduced padding
+        wl.setSpacing(16)  # Reduced spacing
         wl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         _LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Logo.png")
         wi = QLabel(); wi.setObjectName("wall_icon")
@@ -905,8 +911,8 @@ class SettingsWindow(QWidget):
         inner.setObjectName(inner_name)
 
         layout = QVBoxLayout(inner)
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(14)
+        layout.setContentsMargins(24, 16, 24, 20)  # Reduced padding
+        layout.setSpacing(8)  # Reduced spacing
 
         scroll.setWidget(inner)
         ol.addWidget(scroll)

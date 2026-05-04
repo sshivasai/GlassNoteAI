@@ -93,7 +93,8 @@ class DeepgramStreamingSTT:
 
         # Queue holds (np.ndarray at native_sr, native_sr) tuples.
         # Resampling is done in the sender thread — not in the audio callback.
-        self._audio_q: _queue.Queue = _queue.Queue()
+        # FIX: Add maxsize to prevent memory bloat during network lag
+        self._audio_q: _queue.Queue = _queue.Queue(maxsize=100)  # ~2.3s @ 44100Hz
         self._thread:  Optional[threading.Thread] = None
         self._running  = False
         self._stop_event = threading.Event()
@@ -102,6 +103,9 @@ class DeepgramStreamingSTT:
         self._committed_text  = ""
         self._accumulated     = ""
         self._full_transcript = ""
+
+        # FIX: Track last logged transcript to deduplicate Flux Update spam
+        self._last_logged_transcript = ""
 
     # ── Public API ─────────────────────────────────────────────
 
@@ -379,7 +383,12 @@ class DeepgramStreamingSTT:
         if not transcript:
             return
 
-        print(f"[deepgram] flux [{event}]: '{transcript[:60]}'")
+        # FIX: Only log when transcript actually changes (deduplicate Update spam)
+        # Flux sends many Update events as transcript stabilizes — logging every
+        # one creates 80+ duplicate lines. Only log when text changes.
+        if transcript != self._last_logged_transcript:
+            print(f"[deepgram] flux [{event}]: '{transcript[:60]}'")
+            self._last_logged_transcript = transcript
 
         if event in ("Update", "StartOfTurn", "TurnResumed", "EagerEndOfTurn"):
             self._current_partial = transcript
@@ -391,7 +400,9 @@ class DeepgramStreamingSTT:
             self._full_transcript = self._append(self._full_transcript, transcript)
             self._current_partial = ""
             self._accumulated     = self._committed_text
+            # Always log EndOfTurn (even if duplicate) for visibility
             print(f"[deepgram] ✅ EndOfTurn: '{transcript[:60]}'")
+            self._last_logged_transcript = ""  # Reset for next turn
             if self._on_segment_ready:
                 self._on_segment_ready(self._accumulated)
             self._on_partial(self._accumulated)

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QFrame, QStackedWidget, QScrollArea,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QFont, QDragEnterEvent, QDropEvent, QIcon
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from session.manager import manager
@@ -43,7 +43,7 @@ class DropZone(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setFixedHeight(80)
+        self.setFixedHeight(50)  # Ultra-compact
         self._file = ""
         self._build()
 
@@ -205,8 +205,15 @@ class SessionSetupWindow(QWidget):
     def _build_ui(self):
         """Constructs the multi-step UI layout for the session configuration."""
         self.setWindowTitle("GlassNote - New Session")
-        self.setMinimumWidth(540)
-        self.setFont(QFont("Segoe UI", 11))
+        self.setMinimumSize(540, 450)  # Set minimum height to 700px
+        self.resize(540, 450)  # Force initial size to 620px height
+        self.setFont(QFont("Segoe UI", 9))  # Compact font size
+
+        # Set window icon
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -231,7 +238,7 @@ class SessionSetupWindow(QWidget):
     def _build_title_bar(self) -> QWidget:
         bar = QWidget()
         bar.setObjectName("title_bar")
-        bar.setFixedHeight(52)
+        bar.setFixedHeight(44)  # Reduced from 52px
 
         row = QHBoxLayout(bar)
         row.setContentsMargins(18, 0, 10, 0)
@@ -305,8 +312,8 @@ class SessionSetupWindow(QWidget):
         self._page1_inner.setObjectName("page_inner")
 
         lay = QVBoxLayout(self._page1_inner)
-        lay.setContentsMargins(28, 24, 28, 24)
-        lay.setSpacing(14)
+        lay.setContentsMargins(24, 12, 24, 16)  # Ultra-compact padding
+        lay.setSpacing(6)  # Minimal spacing
 
         lay.addWidget(field_label("Company"))
         self.company_input = QLineEdit()
@@ -316,7 +323,7 @@ class SessionSetupWindow(QWidget):
         lay.addWidget(field_label("Job Description"))
         self.jd_input = QTextEdit()
         self.jd_input.setPlaceholderText("Paste the job description here…")
-        self.jd_input.setFixedHeight(100)
+        self.jd_input.setFixedHeight(60)  # Ultra-compact
         lay.addWidget(self.jd_input)
 
         lay.addWidget(field_label("Resume (Optional)"))
@@ -357,13 +364,13 @@ class SessionSetupWindow(QWidget):
         self._page2_inner.setObjectName("page_inner")
 
         lay = QVBoxLayout(self._page2_inner)
-        lay.setContentsMargins(28, 24, 28, 24)
-        lay.setSpacing(14)
+        lay.setContentsMargins(24, 12, 24, 16)  # Ultra-compact padding
+        lay.setSpacing(6)  # Minimal spacing between sections
 
-        # Language row
+        # Language row - single line
         lang_row = QHBoxLayout()
 
-        lc = QVBoxLayout(); lc.setSpacing(6)
+        lc = QVBoxLayout(); lc.setSpacing(2)  # Minimal spacing
         lc.addWidget(field_label("Language"))
         self.lang_combo = QComboBox()
         self.lang_combo.addItems([
@@ -373,9 +380,9 @@ class SessionSetupWindow(QWidget):
         lc.addWidget(self.lang_combo)
         lang_row.addLayout(lc)
 
-        lang_row.addSpacing(20)
+        lang_row.addSpacing(12)  # Minimal gap
 
-        sc = QVBoxLayout(); sc.setSpacing(6)
+        sc = QVBoxLayout(); sc.setSpacing(2)  # Minimal spacing
         sc.addWidget(field_label("Simple Language"))
         self.simple_lang = QCheckBox("Enable")
         sc.addWidget(self.simple_lang)
@@ -383,7 +390,7 @@ class SessionSetupWindow(QWidget):
         lang_row.addStretch()
         lay.addLayout(lang_row)
 
-        lay.addWidget(sep())
+        # NO SEPARATOR - save 12px
 
         # ── Plan info banner (UX-2, UX-4) ────────────────────────────
         self._plan_info = QLabel("")
@@ -391,21 +398,21 @@ class SessionSetupWindow(QWidget):
         self._plan_info.setWordWrap(True)
         lay.addWidget(self._plan_info)
 
-        lay.addWidget(sep())
+        # NO SEPARATOR - save 12px
 
         lay.addWidget(field_label("AI Model"))
         self.model_combo = QComboBox()
         self._populate_models()
         lay.addWidget(self.model_combo)
 
-        lay.addWidget(sep())
+        # NO SEPARATOR - save 12px
 
         lay.addWidget(field_label("Extra Instructions (Optional)"))
         self.extra_input = QTextEdit()
         self.extra_input.setPlaceholderText(
-            "e.g. Focus on Python. Keep answers short. Emphasize patterns…"
+            "e.g. Focus on Python. Keep answers short…"
         )
-        self.extra_input.setFixedHeight(90)
+        self.extra_input.setFixedHeight(50)  # Further reduced from 65px
         lay.addWidget(self.extra_input)
 
         # Error label (word-wrapped for long quota messages)

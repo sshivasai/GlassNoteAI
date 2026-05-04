@@ -16,31 +16,61 @@ from PyQt6.QtGui import QFont, QColor
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import window_hide
 from overlay.ticker import TranscriptTicker
+from overlay.audio_visualizer import AudioPulse
 
 
-# ── Colour tokens ──────────────────────────────────────────────────────────────
+# ── Modern Design Tokens ──────────────────────────────────────────────────────
 _C = {
-    "bg":            "rgba(9, 11, 16, 0.96)",
-    "border":        "rgba(148, 163, 184, 0.16)",
-    "divider":       "rgba(148, 163, 184, 0.14)",
-    "text_dim":      "#273041",
-    "text_muted":    "#738095",
-    "text_normal":   "#aab6c8",
-    "text_active":   "#f4f7fb",
-    "accent":        "#38bdf8",
-    "accent_bg":     "rgba(56, 189, 248, 0.12)",
-    "accent_border": "rgba(56, 189, 248, 0.34)",
-    "green":         "#34d399",
-    "green_bg":      "rgba(52, 211, 153, 0.12)",
-    "green_border":  "rgba(52, 211, 153, 0.30)",
-    "red":           "#fb7185",
-    "red_bg":        "rgba(251, 113, 133, 0.12)",
-    "amber":         "#fbbf24",
-    "timer":         "rgba(244,247,251,0.30)",
-    "dot_idle":      "#34d399",
-    "dot_busy":      "#fbbf24",
-    "close_fg":      "#738095",
-    "close_hover":   "#fb7185",
+    # Base colors - Glass morphism with deeper contrast
+    "bg":            "rgba(10, 12, 20, 0.92)",
+    "bg_hover":      "rgba(15, 18, 28, 0.95)",
+    "border":        "rgba(148, 163, 184, 0.12)",
+    "border_hover":  "rgba(148, 163, 184, 0.28)",
+    "divider":       "rgba(148, 163, 184, 0.10)",
+
+    # Typography
+    "text_dim":      "#3d4658",
+    "text_muted":    "#7b8aa3",
+    "text_normal":   "#b4c1d8",
+    "text_active":   "#f0f4fa",
+
+    # Accent colors - Vibrant cyan/blue
+    "accent":        "#22d3ee",
+    "accent_bright": "#06b6d4",
+    "accent_bg":     "rgba(34, 211, 238, 0.15)",
+    "accent_border": "rgba(34, 211, 238, 0.40)",
+    "accent_glow":   "rgba(34, 211, 238, 0.25)",
+
+    # Success green
+    "green":         "#10b981",
+    "green_bright":  "#34d399",
+    "green_bg":      "rgba(16, 185, 129, 0.15)",
+    "green_border":  "rgba(16, 185, 129, 0.35)",
+    "green_glow":    "rgba(16, 185, 129, 0.30)",
+
+    # Warning/active amber
+    "amber":         "#f59e0b",
+    "amber_bright":  "#fbbf24",
+    "amber_bg":      "rgba(245, 158, 11, 0.15)",
+    "amber_border":  "rgba(245, 158, 11, 0.35)",
+
+    # Error/close red
+    "red":           "#ef4444",
+    "red_bright":    "#f87171",
+    "red_bg":        "rgba(239, 68, 68, 0.15)",
+    "red_border":    "rgba(239, 68, 68, 0.35)",
+
+    # Purple for processing
+    "purple":        "#a855f7",
+    "purple_bg":     "rgba(168, 85, 247, 0.15)",
+    "purple_border": "rgba(168, 85, 247, 0.35)",
+
+    # UI elements
+    "timer":         "rgba(244,247,251,0.40)",
+    "dot_idle":      "#10b981",
+    "dot_busy":      "#f59e0b",
+    "close_fg":      "#7b8aa3",
+    "close_hover":   "#ef4444",
 }
 
 
@@ -50,8 +80,13 @@ def _btn_style(
     color:  str = _C["text_normal"],
     bg:     str = "transparent",
     border: str = "transparent",
-    weight: str = "400",
+    weight: str = "500",
+    hover_bg: str = None,
+    hover_border: str = None,
 ) -> str:
+    hover_bg = hover_bg or _C['accent_bg']
+    hover_border = hover_border or _C['accent_border']
+
     return f"""
         QPushButton {{
             background: {bg};
@@ -59,34 +94,38 @@ def _btn_style(
             color: {color};
             font-size: 11px;
             font-weight: {weight};
-            font-family: 'Segoe UI', 'Inter', sans-serif;
-            padding: 3px 9px;
-            border-radius: 10px;
-            letter-spacing: 0.15px;
+            font-family: 'Segoe UI', 'SF Pro Display', 'Inter', sans-serif;
+            padding: 4px 10px;
+            border-radius: 11px;
+            letter-spacing: 0.2px;
         }}
         QPushButton:hover {{
-            background: {_C['accent_bg']};
-            border-color: {_C['accent_border']};
+            background: {hover_bg};
+            border-color: {hover_border};
             color: {_C['text_active']};
         }}
         QPushButton:pressed {{
-            background: rgba(56,189,248,0.22);
+            background: {_C['accent_glow']};
         }}
     """
 
 
 _STYLE_NORMAL  = _btn_style()
 _STYLE_ACTIVE  = _btn_style(
-    _C["text_active"], _C["accent_bg"], _C["accent_border"], "600"
+    _C["accent"], _C["accent_bg"], _C["accent_border"], "600",
+    hover_bg=_C["accent_glow"], hover_border=_C["accent"]
 )
 _STYLE_RECORD  = _btn_style(
-    _C["red"], _C["red_bg"], "rgba(251,113,133,0.30)", "600"
+    _C["red_bright"], _C["red_bg"], _C["red_border"], "600",
+    hover_bg="rgba(239, 68, 68, 0.25)", hover_border=_C["red"]
 )
 _STYLE_GREEN   = _btn_style(
-    _C["green"], _C["green_bg"], _C["green_border"], "600"
+    _C["green_bright"], _C["green_bg"], _C["green_border"], "600",
+    hover_bg=_C["green_glow"], hover_border=_C["green"]
 )
 _STYLE_SOLVING = _btn_style(
-    _C["amber"], "rgba(251,191,36,0.12)", "rgba(251,191,36,0.30)", "600"
+    _C["amber_bright"], _C["amber_bg"], _C["amber_border"], "600",
+    hover_bg="rgba(245, 158, 11, 0.25)", hover_border=_C["amber"]
 )
 
 _STYLE_ICON_BTN = f"""
@@ -127,15 +166,15 @@ _STYLE_CLOSE = f"""
 _PILL_CSS = f"""
 QWidget#pill_root {{
     background: {_C['bg']};
-    border: 1px solid {_C['border']};
-    border-radius: 22px;
+    border: 1.5px solid {_C['border']};
+    border-radius: 24px;
 }}
 QLabel#timer_lbl {{
     color: {_C['timer']};
-    font-size: 10px;
-    font-family: 'Consolas', 'JetBrains Mono', monospace;
-    letter-spacing: 0.6px;
-    padding: 0 1px;
+    font-size: 11px;
+    font-family: 'Consolas', 'SF Mono', 'JetBrains Mono', monospace;
+    letter-spacing: 0.8px;
+    padding: 0 2px;
     font-weight: 600;
 }}
 QLabel#dot_lbl {{
@@ -143,15 +182,17 @@ QLabel#dot_lbl {{
     padding: 0 1px 0 2px;
 }}
 QLabel#badge_lbl {{
-    background: {_C['accent']};
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                                stop:0 {_C['accent']},
+                                stop:1 {_C['accent_bright']});
     color: white;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
-    font-family: 'Segoe UI', sans-serif;
-    border-radius: 6px;
-    padding: 0px 4px;
-    min-width: 12px;
-    max-height: 12px;
+    font-family: 'Segoe UI', 'SF Pro Display', sans-serif;
+    border-radius: 7px;
+    padding: 0px 5px;
+    min-width: 14px;
+    max-height: 14px;
 }}
 """
 
@@ -169,6 +210,7 @@ class PillWindow(QWidget):
     sig_capture        = pyqtSignal()
     sig_solve          = pyqtSignal()
     sig_analyze        = pyqtSignal()
+    sig_debug          = pyqtSignal()
     sig_interview      = pyqtSignal()
     sig_toggle_overlay = pyqtSignal()
     sig_open_settings  = pyqtSignal()
@@ -215,18 +257,19 @@ class PillWindow(QWidget):
         outer.addWidget(self.root)
 
         row = QHBoxLayout(self.root)
-        row.setContentsMargins(12, 4, 8, 4)
-        row.setSpacing(4)
+        row.setContentsMargins(10, 6, 10, 6)
+        row.setSpacing(6)
 
-        # Status dot + timer ────────────────────────────────────────────────────
-        self._dot = QLabel("●")
-        self._dot.setObjectName("dot_lbl")
-        self._dot.setStyleSheet(f"color: {_C['dot_idle']}; font-size: 6px;")
-        row.addWidget(self._dot)
+        # Modern audio pulse visualizer + timer ─────────────────────────────────
+        self._audio_pulse = AudioPulse()
+        self._audio_pulse.set_state("idle")
+        row.addWidget(self._audio_pulse)
+
+        row.addSpacing(2)
 
         self._timer_lbl = QLabel("00:00")
         self._timer_lbl.setObjectName("timer_lbl")
-        self._timer_lbl.setFixedWidth(36)   # ← fixed: prevents layout reflow when buttons resize
+        self._timer_lbl.setFixedWidth(40)   # Slightly wider for better spacing
         row.addWidget(self._timer_lbl)
 
         row.addSpacing(4)
@@ -247,8 +290,10 @@ class PillWindow(QWidget):
         # Fixed width to accommodate "Solve" and "Solving…"
         self._btn_solve   = self._make_btn("⚡", "Solve",   self.sig_solve,   width=85)
         self._btn_analyze = self._make_btn("🖥", "Analyze", self.sig_analyze, width=85)
+        self._btn_debug   = self._make_btn("🐛", "Debug",   self.sig_debug,   width=85)
         row.addWidget(self._btn_solve)
         row.addWidget(self._btn_analyze)
+        row.addWidget(self._btn_debug)
 
         row.addSpacing(4)
         row.addWidget(_Divider())
@@ -312,9 +357,9 @@ class PillWindow(QWidget):
 
     def _add_shadow(self):
         sh = QGraphicsDropShadowEffect(self)
-        sh.setBlurRadius(28)
-        sh.setOffset(0, 6)
-        sh.setColor(QColor(0, 0, 0, 150))
+        sh.setBlurRadius(32)
+        sh.setOffset(0, 8)
+        sh.setColor(QColor(0, 0, 0, 180))
         self.root.setGraphicsEffect(sh)
 
     # ── Ticker positioning ─────────────────────────────────────────────────────
@@ -345,15 +390,15 @@ class PillWindow(QWidget):
             status: One of "warming" | "ready" | "" (empty = clear)
         """
         if status == "warming":
-            self._dot.setStyleSheet(f"color: {_C['amber']}; font-size: 6px;")
+            self._audio_pulse.set_state("processing")
             self._timer_lbl.setToolTip("Warming up connections…")
         elif status == "ready":
-            self._dot.setStyleSheet(f"color: {_C['dot_idle']}; font-size: 6px;")
+            self._audio_pulse.set_state("idle")
             self._timer_lbl.setToolTip("Ready")
             # Auto-clear "ready" tooltip after 3 seconds
             QTimer.singleShot(3000, lambda: self._timer_lbl.setToolTip(""))
         else:
-            self._dot.setStyleSheet(f"color: {_C['dot_idle']}; font-size: 6px;")
+            self._audio_pulse.set_state("idle")
             self._timer_lbl.setToolTip("")
 
     def set_queue_count(self, count: int):
@@ -436,12 +481,8 @@ class PillWindow(QWidget):
 
         self._solving = solving
 
-        # Update status dot
-        self._dot.setStyleSheet(
-            f"color: {_C['dot_busy']}; font-size: 6px;"
-            if solving else
-            f"color: {_C['dot_idle']}; font-size: 6px;"
-        )
+        # Update audio pulse state
+        self._audio_pulse.set_state("processing" if solving else "idle")
 
         # Block signals during button update
         self._btn_solve.blockSignals(True)
@@ -466,8 +507,7 @@ class PillWindow(QWidget):
             self.ticker.set_audio_bars(int(level * 5))
 
     def set_transcribing(self, transcribing: bool):
-        color = _C["dot_busy"] if transcribing else _C["dot_idle"]
-        self._dot.setStyleSheet(f"color: {color}; font-size: 6px;")
+        self._audio_pulse.set_state("listening" if transcribing else "idle")
 
     def set_overlay_visible(self, visible: bool):
         self._overlay_visible = visible
@@ -481,6 +521,8 @@ class PillWindow(QWidget):
     def set_user_speaking(self, speaking: bool):
         if not self._interview_mode:
             return
+        # Update both pill and ticker
+        self._audio_pulse.set_state("speaking" if speaking else "listening")
         if speaking:
             self.ticker.set_status_user_speaking()
         else:

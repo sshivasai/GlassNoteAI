@@ -65,6 +65,7 @@ class AppController(QObject):
     _sig_capture        = pyqtSignal()
     _sig_solve          = pyqtSignal()
     _sig_analyze        = pyqtSignal()
+    _sig_debug          = pyqtSignal()
     _sig_interview      = pyqtSignal()
     _sig_toggle_overlay = pyqtSignal()
     _sig_end_session    = pyqtSignal()
@@ -162,6 +163,7 @@ class AppController(QObject):
         self.pill.sig_capture.connect(self._on_capture)
         self.pill.sig_solve.connect(self._on_solve)
         self.pill.sig_analyze.connect(self._on_analyze)
+        self.pill.sig_debug.connect(self._on_debug)
         self.pill.sig_interview.connect(self._on_interview_toggle)
         self.pill.sig_toggle_overlay.connect(self._on_toggle_overlay)
         self.pill.sig_open_settings.connect(self._on_open_settings)
@@ -170,6 +172,7 @@ class AppController(QObject):
         self._sig_capture.connect(self._on_capture)
         self._sig_solve.connect(self._on_solve)
         self._sig_analyze.connect(self._on_analyze)
+        self._sig_debug.connect(self._on_debug)
         self._sig_interview.connect(self._on_interview_toggle)
         self._sig_toggle_overlay.connect(self._on_toggle_overlay)
         self._sig_end_session.connect(self._on_end_session)
@@ -248,6 +251,7 @@ class AppController(QObject):
         hotkey_manager.register("capture",        lambda: self._sig_capture.emit())
         hotkey_manager.register("solve",          lambda: self._sig_solve.emit())
         hotkey_manager.register("analyze",        lambda: self._sig_analyze.emit())
+        hotkey_manager.register("debug",          lambda: self._sig_debug.emit())
         hotkey_manager.register("interview",      lambda: self._sig_interview.emit())
         hotkey_manager.register("clear_queue",    self._on_remove_last_screenshot)
         hotkey_manager.register("toggle_overlay", lambda: self._sig_toggle_overlay.emit())
@@ -502,6 +506,26 @@ class AppController(QObject):
             self.overlay.set_error(f"Capture failed: {e}")
             self.overlay.show()
 
+    def _on_debug(self):
+        """
+        Debug/code review mode — instant capture + debug analysis.
+        Silent shortcut for interview scenarios where you can't speak.
+        """
+        if not session_manager.is_active():
+            return
+        try:
+            b64 = screencap.capture_fullscreen()
+            print("[app] DEBUG — instant capture + code review")
+            self._dispatch_llm(
+                images=[b64],
+                mode="debug",
+                label="Code Review",
+                question="Reviewing code for issues",
+            )
+        except Exception as e:
+            self.overlay.set_error(f"Capture failed: {e}")
+            self.overlay.show()
+
     # ── Interview ──────────────────────────────────────────────────────────────
 
     def _on_interview_toggle(self):
@@ -533,7 +557,9 @@ class AppController(QObject):
         cfg    = config.load_config()
         source = cfg.get("audio_source", "system")
 
-        if not self._audio.is_running():
+        pipeline_was_running = self._audio.is_running()
+
+        if not pipeline_was_running:
             # First entry: start the full pipeline (runs once per session)
             # Note: STT DNS pre-resolution happens in _prefetch_stt_and_start()
             llm_client.warm_connections(cfg=cfg)
@@ -546,8 +572,10 @@ class AppController(QObject):
         self.pill.set_recording(True)
         self.pill.set_continuous_mode(True)
 
-        # Open the dispatch gate — instant on subsequent toggles
-        self._audio.resume()
+        # Open the dispatch gate — only call resume() if pipeline was already running
+        # On first start, the pipeline is already in the correct state
+        if pipeline_was_running:
+            self._audio.resume()
 
         # TTFT-OPT: Only start silence timer when smart_answering=False.
         # When using STT end-of-turn signals (smart_answering=True), the
@@ -562,8 +590,8 @@ class AppController(QObject):
         """
         Exit interview mode - pause recording but keep connections warm.
 
-        IMPORTANT: Uses pause() not stop_recording() to keep WebSocket alive.
-        This avoids cold-start latency when restarting interview mode.
+        FIX: Uses pause() which now truly keeps connections alive (gate-only).
+        Resume will be instant (<10ms) instead of 500-800ms cold start.
         """
         self._recording = False
         self._silence_timer.stop()
@@ -578,14 +606,13 @@ class AppController(QObject):
             if text and text.strip():
                 self._on_transcript_ready(text.strip())
 
-        # Use pause() to close gate but keep STT WebSocket alive
-        # This prevents cold-start latency on resume
+        # Use pause() to close gate - connections stay warm for instant resume
         self._audio.pause()
 
         self.pill.set_recording(False)
         self.pill.set_solving(False, mode="solve")
         self.pill.set_continuous_mode(False)
-        print("[app] Interview mode paused (WebSocket kept alive for fast resume)")
+        print("[app] Interview mode paused (connections warm, <10ms resume)")
 
 
     # ── STT warm connection ────────────────────────────────────────────────────
@@ -1244,6 +1271,49 @@ class AppController(QObject):
 
     # ── Core LLM dispatch ──────────────────────────────────────────────────────
 
+    def _detect_mode_from_content(self, question: str, images: list) -> str:
+        """
+        Auto-detect the appropriate mode based on question content.
+
+        System design keywords → "analyze" (analyze mode handles system design)
+        Debug/review keywords → "debug"
+        Has images but no keywords → "solve"
+        Text-only interview question → "interview"
+
+        Args:
+            question (str): The user's question or transcript
+            images (list): Screenshots provided
+
+        Returns:
+            str: Detected mode ("solve", "analyze", "debug", "interview")
+        """
+        question_lower = question.lower()
+
+        # System design detection
+        system_design_keywords = [
+            "design", "architecture", "build a system", "scalability",
+            "distributed", "millions of users", "microservices",
+            "how would you build", "implement a system", "design a",
+            "load balancing", "database schema", "api design"
+        ]
+        if any(kw in question_lower for kw in system_design_keywords):
+            return "analyze"  # Analyze mode now handles system design
+
+        # Debug/code review detection
+        debug_keywords = [
+            "debug", "review this code", "is this correct", "fix this",
+            "what's wrong with", "optimize this code", "bug in",
+            "error in this", "improve this code"
+        ]
+        if any(kw in question_lower for kw in debug_keywords):
+            return "debug"
+
+        # Default modes based on input type
+        if images:
+            return "solve"  # Has screenshots → likely a coding problem
+        else:
+            return "interview"  # Text-only → interview question
+
     def _dispatch_llm(
         self,
         images:            list,
@@ -1286,6 +1356,8 @@ class AppController(QObject):
                 if smart
                 else prompts.build_interview_prompt(base)
             )
+        elif mode == "debug":
+            system_prompt = prompts.build_debug_prompt(base)
         else:
             system_prompt = prompts.build_solve_prompt(base, text_only=text_only)
 
@@ -1335,6 +1407,12 @@ class AppController(QObject):
             print(f"[app] Answer complete — wall time {elapsed:.0f} ms")
             self.pill.set_solving(False, mode=mode)
             self.overlay.finish_stream(label)
+
+            # ── Extract patterns from answer for session tracking ─────────────
+            session = session_manager.get()
+            if session and mode in ["solve", "analyze"]:
+                # Only track patterns for coding/analysis questions, not interview chat
+                session.extract_patterns_from_answer(full_text)
 
             # ── Record in performance tracker ─────────────────────────────
             # Approximate output tokens from character count (~4 chars/token)

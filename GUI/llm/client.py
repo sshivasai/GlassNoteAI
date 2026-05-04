@@ -489,9 +489,9 @@ _pool = _ConnectionPool()
 # ──────────────────────────────────────────────────────────────────────────────
 
 _ANTHROPIC_MODELS = {
-    "fast":     "claude-haiku-4-5",
-    "balanced": "claude-sonnet-4-5",
-    "best":     "claude-opus-4-5",
+    "fast":     "claude-haiku-4-5-20251001",
+    "balanced": "claude-sonnet-4-5-20250929",
+    "best":     "claude-opus-4-5-20251101",
 }
 _OPENAI_MODELS = {
     "fast":     "gpt-4o-mini",
@@ -504,7 +504,7 @@ _CEREBRAS_MODELS = {
     "best":     "gpt-oss-120b",
 }
 _DEFAULT_MODELS = {
-    "anthropic": "claude-opus-4-5",
+    "anthropic": "claude-opus-4-5-20251101",
     "openai":    "gpt-4o",
     "cerebras":  "llama3.1-8b",
 }
@@ -525,6 +525,15 @@ _MODE_MAX_TOKENS: dict[str, int] = {
     "interview": 600,
     "solve":    2_048,
     "analyze":  1_500,
+    "debug":    2_048,
+}
+
+# Temperature settings per mode for consistency vs creativity balance
+_MODE_TEMPERATURES: dict[str, float] = {
+    "interview":    0.7,  # Natural variation in spoken answers
+    "solve":        0.3,  # Consistent technical solutions
+    "analyze":      0.3,  # Consistent technical analysis
+    "debug":        0.2,  # Precise bug identification and fixes
 }
 
 
@@ -894,7 +903,7 @@ class LLMClient:
 
     def _resolve_model(self, cfg, provider, messages, mode) -> str:
         if provider == "anthropic":
-            user_model = cfg.get("anthropic_model", "claude-opus-4-5")
+            user_model = cfg.get("anthropic_model", "claude-opus-4-5-20251101")
         elif provider == "cerebras":
             user_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:
@@ -1024,19 +1033,22 @@ class LLMClient:
             max_tokens = min(max_tokens, 400)  # Cap at 400 for interview mode
 
         # Build the request body — same format the provider expects
+        temperature = _MODE_TEMPERATURES.get(mode, 0.7)
+
         if provider == "anthropic":
             use_cache = bool(cfg.get("use_prompt_cache", True))
             user_msgs = self._build_anthropic_messages(
                 messages, images, use_cache
             )
             body = {
-                "model":      model,
-                "max_tokens": max_tokens,
-                "stream":     True,
-                "messages":   user_msgs,
-                "system":     self._anthropic_system_payload(
-                                  system_prompt, use_cache
-                              ),
+                "model":       model,
+                "max_tokens":  max_tokens,
+                "stream":      True,
+                "temperature": temperature,
+                "messages":    user_msgs,
+                "system":      self._anthropic_system_payload(
+                                   system_prompt, use_cache
+                               ),
             }
             endpoint = f"{proxy_url}{self.PROXY_ANTHROPIC_PATH}"
         elif provider == "openai":
@@ -1045,10 +1057,11 @@ class LLMClient:
                 self._build_openai_messages(messages, images)
             )
             body = {
-                "model":      model,
-                "messages":   oai_messages,
-                "stream":     True,
-                "max_tokens": max_tokens,
+                "model":       model,
+                "messages":    oai_messages,
+                "stream":      True,
+                "max_tokens":  max_tokens,
+                "temperature": temperature,
             }
             endpoint = f"{proxy_url}{self.PROXY_OPENAI_PATH}"
         elif provider == "cerebras":
@@ -1062,7 +1075,7 @@ class LLMClient:
                 "messages":    cb_messages,
                 "stream":      True,
                 "max_tokens":  max_tokens,
-                "temperature": 0.7,
+                "temperature": temperature,
                 "top_p":       1,
             }
             endpoint = f"{proxy_url}{self.PROXY_CEREBRAS_PATH}"
@@ -1200,13 +1213,14 @@ class LLMClient:
             headers["anthropic-beta"] = "prompt-caching-2024-07-31"
 
         body = {
-            "model":      model,
-            "max_tokens": max_tokens,
-            "stream":     True,
-            "messages":   user_msgs,
-            "system":     self._anthropic_system_payload(
-                              system_prompt, use_prompt_cache       # ← CHANGED
-                          ),
+            "model":       model,
+            "max_tokens":  max_tokens,
+            "stream":      True,
+            "temperature": _MODE_TEMPERATURES.get(mode, 0.7),
+            "messages":    user_msgs,
+            "system":      self._anthropic_system_payload(
+                               system_prompt, use_prompt_cache       # ← CHANGED
+                           ),
         }
 
         full_text: list[str]       = []
@@ -1315,6 +1329,7 @@ class LLMClient:
             "messages":       oai_messages,
             "stream":         True,
             "max_tokens":     max_tokens,
+            "temperature":    _MODE_TEMPERATURES.get(mode, 0.7),
             "stream_options": {"include_usage": True},   # ← NEW (token logging)
         }
 
@@ -1413,7 +1428,7 @@ class LLMClient:
             "messages":    cb_messages,
             "stream":      True,
             "max_tokens":  max_tokens,
-            "temperature": 0.7,
+            "temperature": _MODE_TEMPERATURES.get(mode, 0.7),
             "top_p":       1,
         }
 
