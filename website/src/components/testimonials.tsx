@@ -6,35 +6,7 @@
  * backend without touching the frontend. No hardcoding here.
  */
 
-import { fetchPublicTestimonials, Testimonial } from "@/lib/api";
-
-// ── Fallback testimonials — shown if the API is unreachable ──────────────────
-const FALLBACK_TESTIMONIALS: Testimonial[] = [
-  {
-    text: "I used GlassNote for my Amazon loop and it was incredible. The overlay answered system design questions in real-time while being completely invisible on Chime. Got the offer.",
-    author: "Alex K.",
-    role: "Software Engineer → Amazon",
-    initial: "A",
-    plan: "unlimited",
-    stars: 5,
-  },
-  {
-    text: "The speed is unreal. Claude Opus starts answering before I even finish reading the question. The transparent overlay feels like having a second brain on screen.",
-    author: "Sarah M.",
-    role: "SDE II → Google",
-    initial: "S",
-    plan: "unlimited",
-    stars: 5,
-  },
-  {
-    text: "BYOK mode is genius — I use my own Anthropic key so there's zero platform fee. The auto model routing picks the right model every time.",
-    author: "Raj P.",
-    role: "Full Stack → Microsoft",
-    initial: "R",
-    plan: "byok",
-    stars: 5,
-  },
-];
+import { fetchPublicTestimonials } from "@/lib/api";
 
 // ── Star rating display ───────────────────────────────────────────────────────
 function Stars({ count }: { count: number }) {
@@ -50,10 +22,12 @@ function Stars({ count }: { count: number }) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export async function Testimonials() {
-  // Fetch live from backend; falls back to static if API is unreachable
+  // Fetch live from backend; only show if testimonials exist (no fallback)
   let testimonials = await fetchPublicTestimonials(6);
+
+  // If no testimonials, don't render the section at all
   if (!testimonials || testimonials.length === 0) {
-    testimonials = FALLBACK_TESTIMONIALS;
+    return null;
   }
 
   return (
@@ -64,10 +38,10 @@ export async function Testimonials() {
             <span className="text-xs font-bold text-[var(--cyan)] tracking-widest uppercase">Testimonials</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-            Loved by engineers
+            Trusted by professionals
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            See how GlassNote is helping developers ace their meetings at top tech companies.
+            See how GlassNote helps professionals communicate confidently in every meeting.
           </p>
         </div>
 

@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Download, Zap, Calendar, Shield } from "lucide-react";
 import Link from "next/link";
+import { DOWNLOAD_URL } from "@/lib/config";
 
 export default function DashboardOverview() {
   const { user } = useAuth();
@@ -15,12 +16,12 @@ export default function DashboardOverview() {
 
   // Plan expiry helpers
   const expiresAt = user.plan_expires_at ? new Date(user.plan_expires_at) : null;
-  const daysLeft  = expiresAt
+  const daysLeft = expiresAt
     ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
   const expiryWarning = daysLeft !== null && daysLeft <= 5;
   const planLabel = user.plan.charAt(0).toUpperCase() + user.plan.slice(1) +
-                    (user.byok_enabled ? " (BYOK)" : "");
+    (user.byok_enabled ? " (BYOK)" : "");
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -83,15 +84,17 @@ export default function DashboardOverview() {
           </p>
 
           <div className="space-y-3">
-            <Button className="w-full justify-between bg-[var(--cyan)] text-white hover:opacity-90">
-              <span className="flex items-center gap-2">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801"/>
-                </svg>
-                Download for Windows (x64)
-              </span>
-              <Download className="w-4 h-4" />
-            </Button>
+            <a href={DOWNLOAD_URL} download className="block w-full">
+              <Button className="w-full justify-between bg-[var(--cyan)] text-white hover:opacity-90">
+                <span className="flex items-center gap-2">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801" />
+                  </svg>
+                  Download for Windows (x64)
+                </span>
+                <Download className="w-4 h-4" />
+              </Button>
+            </a>
             <p className="text-xs text-center text-[var(--text-muted)]">Requires Windows 10 or later</p>
           </div>
         </div>
@@ -109,9 +112,8 @@ export default function DashboardOverview() {
           <p className="text-xs text-[var(--text-muted)] mb-1 uppercase tracking-wider">Email Verified</p>
           <p className="text-xl font-bold text-emerald-400">{user.is_verified ? "✓ Yes" : "✗ No"}</p>
         </div>
-        <div className={`p-5 rounded-xl border bg-[var(--bg-card)] ${
-          expiryWarning ? "border-red-500/50" : "border-[var(--border)]"
-        }`}>
+        <div className={`p-5 rounded-xl border bg-[var(--bg-card)] ${expiryWarning ? "border-red-500/50" : "border-[var(--border)]"
+          }`}>
           <p className="text-xs text-[var(--text-muted)] mb-1 uppercase tracking-wider flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Plan Expires
           </p>
@@ -119,7 +121,7 @@ export default function DashboardOverview() {
             <p className="text-xl font-bold text-[var(--text-muted)]">No expiry</p>
           ) : expiresAt ? (
             <>
-              <p className={`text-xl font-bold ${ expiryWarning ? "text-red-400" : "text-white" }`}>
+              <p className={`text-xl font-bold ${expiryWarning ? "text-red-400" : "text-white"}`}>
                 {daysLeft}d left
               </p>
               <p className="text-xs text-[var(--text-muted)] mt-1">

@@ -42,32 +42,32 @@ const features = [
   {
     icon: DeepgramIcon,
     title: "Real-Time Transcription",
-    description: "Listens to your meeting conversation via system audio or microphone. Supports Deepgram and OpenAI Realtime STT with ultra-low latency.",
+    description: "Captures meeting conversations via system audio or microphone with ultra-low latency. Supports Deepgram and OpenAI STT.",
   },
   {
     icon: ScreenIcon,
-    title: "Smart Screen Capture",
-    description: "Automatically detects and captures coding problems, system design diagrams, and questions from your screen.",
+    title: "Intelligent Screen Analysis",
+    description: "Automatically detects and analyzes content from your screen to provide relevant context for better AI responses.",
   },
   {
     icon: AILogos,
     title: "Claude & GPT Powered",
-    description: "Choose between Claude Opus, Sonnet, Haiku, GPT-4o, or GPT-4. Auto-routing selects the optimal model.",
+    description: "Access to Claude Opus, Sonnet, Haiku, GPT-4o, and more. Auto-routing intelligently selects the optimal model.",
   },
   {
     icon: GhostIcon,
-    title: "Invisible Overlay",
-    description: "The transparent glass overlay is completely invisible to screen sharing tools. Works on Zoom, Teams, Meet, and more.",
+    title: "Completely Invisible",
+    description: "The transparent overlay is undetectable by screen sharing tools. Works seamlessly with Zoom, Teams, Meet, and more.",
   },
   {
     icon: LightningIcon,
-    title: "Sub-300ms Response",
-    description: "Speculative connection pre-warming, HTTP/2 connection pools, and zero-copy streaming ensure fast responses.",
+    title: "187ms First Token",
+    description: "Blazing-fast responses powered by Cerebras models, HTTP/2 connection pooling, and optimized streaming architecture.",
   },
   {
     icon: KeyIcon,
     title: "Bring Your Own Keys",
-    description: "Use GlassNote Cloud for managed access, or bring your own API keys. Your data never touches our servers in BYOK mode.",
+    description: "Use GlassNote Cloud or bring your own API keys. In BYOK mode, your data never touches our servers. 100% privacy.",
   },
 ];
 
@@ -80,10 +80,10 @@ export function Features() {
             <span className="text-xs font-bold text-[var(--cyan)] tracking-widest uppercase">Features</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-            Everything you need to<br />ace your meeting
+            Your AI-Powered<br />Meeting Assistant
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            GlassNote combines real-time audio transcription, screen analysis, and AI reasoning into a seamless invisible overlay.
+            Real-time transcription, intelligent screen analysis, and instant AI insights — all in a seamless, invisible overlay.
           </p>
         </div>
 

@@ -7,18 +7,18 @@ export function HowItWorks() {
     },
     {
       number: 2,
-      title: "Configure Session",
-      description: "Enter company name, paste job description, upload your resume. Choose your AI model.",
+      title: "Configure Settings",
+      description: "Add your API keys or sign in to GlassNote Cloud. Select your preferred AI models and customize your preferences.",
     },
     {
       number: 3,
-      title: "Start Meeting",
-      description: "GlassNote listens via system audio and captures your screen. Hit a hotkey when you need help.",
+      title: "Join Your Meeting",
+      description: "GlassNote listens via system audio and monitors your screen. Press a hotkey whenever you need assistance.",
     },
     {
       number: 4,
-      title: "Get AI Answers",
-      description: "Real-time answers stream into a transparent overlay that only you can see. Invisible to screen share.",
+      title: "Get Instant Help",
+      description: "Real-time AI responses appear in a transparent overlay visible only to you. Completely invisible during screen sharing.",
     },
   ];
 

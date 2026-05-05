@@ -161,11 +161,30 @@ export async function Pricing() {
             Simple, transparent pricing
           </h2>
           <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto">
-            Start free, no credit card needed. Upgrade when you&apos;re ready — or bring your own API keys for unlimited access (also free).
+            Start free with BYOK (Bring Your Own Keys). Use your own API keys for unlimited access at zero cost. Open source and self-hostable.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto perspective-1000">
+        {/* BYOK Notice */}
+        <div className="max-w-4xl mx-auto mb-12 p-6 rounded-xl border border-[var(--cyan)] bg-[rgba(0,217,255,0.05)] backdrop-blur-sm">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[var(--cyan-dim)] flex items-center justify-center">
+              <svg className="w-6 h-6 text-[var(--cyan)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-white mb-2">💡 Free Forever with BYOK</h3>
+              <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                Bring Your Own API Keys (BYOK) for unlimited access at <span className="text-[var(--cyan)] font-semibold">$0 platform cost</span>.
+                You pay only your AI provider (OpenAI, Anthropic, Deepgram) — typically <span className="text-[var(--lime)]">$0.50-$2 per hour</span> of meetings.
+                Your data goes directly to your providers, never touching our servers.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-6 max-w-7xl mx-auto perspective-1000">
           {plans.map((plan, i) => {
             const isPopular = plan.id === popularId;
             const features = getPlanFeatureLines(plan);
@@ -177,7 +196,7 @@ export async function Pricing() {
             return (
               <div
                 key={plan.id}
-                className={`relative p-8 rounded-2xl border flex flex-col h-full card-3d glass-panel ${isPopular
+                className={`relative p-8 rounded-2xl border flex flex-col w-full md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)] min-w-[280px] card-3d glass-panel ${isPopular
                     ? "border-[var(--cyan)] shadow-[0_0_40px_rgba(79,142,247,0.15)] md:-translate-y-4 md:scale-105 z-10"
                     : "border-[var(--border)] hover:border-[var(--border-glow)]"
                   }`}

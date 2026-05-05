@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { Mic, Monitor, Cpu, Activity, Bot, EyeOff } from "lucide-react";
+import { DOWNLOAD_URL } from "@/lib/config";
 
 type Tab = 'stt' | 'screen' | 'model' | 'perf' | 'stealth';
 
@@ -34,30 +35,31 @@ export function Hero() {
 
         {/* Main heading */}
         <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight tracking-tighter animate-fade-in text-glow" style={{ animationDelay: "0.1s" }}>
-          Your Invisible
+          Speak Confidently in
           <br />
           <span className="bg-gradient-to-r from-[var(--cyan)] via-[var(--lime)] to-[var(--cyan)] bg-clip-text text-transparent">
-            AI Meeting Companion
+            Every Meeting
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-xl text-[var(--text-secondary)] max-w-2xl mx-auto mb-8 leading-relaxed animate-fade-in" style={{ animationDelay: "0.2s" }}>
-          GlassNote listens to your meeting, captures your screen, and delivers real-time AI answers through a transparent overlay that only you can see.
+          Real-time AI assistance that helps you communicate clearly and confidently. Get instant answers through a transparent overlay that only you can see.
         </p>
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-fade-in" style={{ animationDelay: "0.3s" }}>
-          <Button
-            size="lg"
-            onClick={() => openAuth("signup")}
-            className="bg-[var(--cyan)] text-white hover:opacity-90 font-semibold px-8 h-12 flex items-center gap-2 shadow-[0_0_20px_var(--cyan-dim)] transition-transform duration-300 hover:scale-105"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801" />
-            </svg>
-            Download for Windows
-          </Button>
+          <a href={DOWNLOAD_URL} download>
+            <Button
+              size="lg"
+              className="bg-[var(--cyan)] text-white hover:opacity-90 font-semibold px-8 h-12 flex items-center gap-2 shadow-[0_0_20px_var(--cyan-dim)] transition-transform duration-300 hover:scale-105"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.951-1.801" />
+              </svg>
+              Download for Windows
+            </Button>
+          </a>
           <Button
             size="lg"
             variant="outline"
@@ -267,16 +269,16 @@ export function Hero() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: "0.5s" }}>
           <div className="text-center">
-            <div className="text-3xl font-bold text-[var(--cyan)] mb-2">&lt;300ms</div>
-            <div className="text-sm text-[var(--text-muted)]">Response Time</div>
+            <div className="text-3xl font-bold text-[var(--cyan)] mb-2">187ms</div>
+            <div className="text-sm text-[var(--text-muted)]">First Token (TTFT)</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-[var(--lime)] mb-2">100%</div>
-            <div className="text-sm text-[var(--text-muted)]">Screen Share Invisible</div>
+            <div className="text-sm text-[var(--text-muted)]">Invisible on Screen Share</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-[var(--cyan)] mb-2">2x</div>
-            <div className="text-sm text-[var(--text-muted)]">AI Models Built In</div>
+            <div className="text-3xl font-bold text-[var(--cyan)] mb-2">Open</div>
+            <div className="text-sm text-[var(--text-muted)]">Source on GitHub</div>
           </div>
         </div>
       </div>
