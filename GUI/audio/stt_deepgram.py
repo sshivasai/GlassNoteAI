@@ -18,7 +18,7 @@ Deepgram defaults (for reference):
 Two API modes
 -------------
 V1  nova-3, nova-2  — standard streaming, interim_results + endpointing
-V2  flux-general-*  — TurnInfo events, lower latency for live speech
+V2  flux-general-multi  — TurnInfo events, lower latency for live speech
 
 Auto-reconnect (Bug-R fix)
 --------------------------

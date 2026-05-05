@@ -500,14 +500,14 @@ class SettingsWindow(QWidget):
 
         self.deepgram_model = QComboBox()
         self.deepgram_model.addItems([
-            "flux-general-en  (V2 API — ultra low latency ~80 ms, EndOfTurn events)",
+            "flux-general-multi  (V2 API — ultra low latency ~80 ms, EndOfTurn events)",
             "nova-3           (V1 API — highest accuracy, speech_final events)",
             "nova-2           (V1 API — stable, widely supported)",
         ])
         layout.addWidget(self.deepgram_model)
 
         self._dg_model_note = _note(
-            "flux-general-en: best for real-time — word appears as spoken.\n"
+            "flux-general-multi: best for real-time — word appears as spoken.\n"
             "nova-3 / nova-2: higher accuracy with interim partial results."
         )
         layout.addWidget(self._dg_model_note)
@@ -603,8 +603,8 @@ class SettingsWindow(QWidget):
         self._smart_answering_note = _note(                             # ← store ref for dynamic updates
             "When ON, the STT provider's own end-of-utterance event is used "
             "together with the silence threshold to dispatch to the AI.\n\n"
-            "Pair this smart signal with the ultra-low latency Deepgram flux-general-en model for best results — answers immediately at end of speech, not after a delay.\n\n"
-            "• Deepgram flux-general-en  → EndOfTurn event  (V2 API)\n"
+            "Pair this smart signal with the ultra-low latency Deepgram flux-general-multi model for best results — answers immediately at end of speech, not after a delay.\n\n"
+            "• Deepgram flux-general-multi  → EndOfTurn event  (V2 API)\n"
             "• Deepgram nova-3 / nova-2  → speech_final=True  (V1 API)\n"
             "• OpenAI Realtime           → transcription.completed  (server VAD)\n\n"
             "Both signals are OR-ed — whichever fires first triggers dispatch. "
@@ -1240,12 +1240,12 @@ class SettingsWindow(QWidget):
 
         # Deepgram model
         dg_model_map = {
-            "flux-general-en": 0,
+            "flux-general-multi": 0,
             "nova-3":          1,
             "nova-2":          2,
         }
         self.deepgram_model.setCurrentIndex(
-            dg_model_map.get(c.get("deepgram_model", "flux-general-en"), 0)
+            dg_model_map.get(c.get("deepgram_model", "flux-general-multi"), 0)
         )
 
         # ── OpenAI Realtime STT model  ← NEW
@@ -1303,7 +1303,7 @@ class SettingsWindow(QWidget):
         stt_map   = {0: "deepgram",    1: "openai_realtime"}
         src_map   = {0: "system",      1: "microphone",     2: "both"}
         width_map = {0: 640,           1: 1024,             2: 1280,   3: 1920}
-        dg_models = ["flux-general-en", "nova-3", "nova-2"]
+        dg_models = ["flux-general-multi", "nova-3", "nova-2"]
         oai_stt_models = [                                               # ← NEW
             "gpt-4o-mini-transcribe",
             "gpt-4o-transcribe",

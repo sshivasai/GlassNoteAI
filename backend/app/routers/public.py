@@ -24,77 +24,7 @@ router = APIRouter(prefix="/api/public", tags=["public"])
 # redeploy — website updates immediately.
 
 _TESTIMONIALS = [
-    {
-        "text": (
-            "I used GlassNote for my Amazon loop and it was incredible. "
-            "The overlay answered system design questions in real-time while "
-            "being completely invisible on Chime. Got the offer."
-        ),
-        "author": "Alex K.",
-        "role": "Software Engineer → Amazon",
-        "initial": "A",
-        "plan": "unlimited",
-        "stars": 5,
-    },
-    {
-        "text": (
-            "The speed is unreal. Claude Opus starts answering before I even "
-            "finish reading the question. The transparent overlay feels like "
-            "having a second brain on screen."
-        ),
-        "author": "Sarah M.",
-        "role": "SDE II → Google",
-        "initial": "S",
-        "plan": "unlimited",
-        "stars": 5,
-    },
-    {
-        "text": (
-            "BYOK mode is genius — I use my own Anthropic key so there's zero "
-            "platform fee. The auto model routing picks the right model every time."
-        ),
-        "author": "Raj P.",
-        "role": "Full Stack → Microsoft",
-        "initial": "R",
-        "plan": "byok",
-        "stars": 5,
-    },
-    {
-        "text": (
-            "The Base plan is perfect for my weekly practice sessions. "
-            "15 sessions a month is more than enough, and the quality of "
-            "answers has genuinely improved my system design explanations."
-        ),
-        "author": "James T.",
-        "role": "Backend Engineer → Meta",
-        "initial": "J",
-        "plan": "base",
-        "stars": 5,
-    },
-    {
-        "text": (
-            "Started on the Free plan to test it out. The 5 sessions were "
-            "enough to convince me — upgraded to Unlimited the same day. "
-            "Best investment for interview prep I've made."
-        ),
-        "author": "Priya S.",
-        "role": "ML Engineer → Stripe",
-        "initial": "P",
-        "plan": "free",
-        "stars": 5,
-    },
-    {
-        "text": (
-            "What surprised me most is how invisible it is. Screenshare on "
-            "Zoom, Teams, Google Meet — nobody ever notices. Passed my "
-            "FAANG onsite after struggling for months."
-        ),
-        "author": "Chen W.",
-        "role": "SWE → Apple",
-        "initial": "C",
-        "plan": "unlimited",
-        "stars": 5,
-    },
+    
 ]
 
 

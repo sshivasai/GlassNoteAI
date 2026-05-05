@@ -108,10 +108,10 @@ DEFAULTS = {
     "stt_provider":       "deepgram",            # ← CHANGED (was "whisper")
 
     # ── Deepgram model ─────────────────────────────────────────
-    # "flux-general-en" → V2 API  (ultra low latency, EndOfTurn events)
+    # "flux-general-multi" → V2 API  (ultra low latency, EndOfTurn events)
     # "nova-3"          → V1 API  (highest accuracy, speech_final events)
     # "nova-2"          → V1 API  (stable, widely supported)
-    "deepgram_model":     "flux-general-en",
+    "deepgram_model":     "flux-general-multi",
 
     # ── OpenAI Realtime STT model ──────────────────────────────
     # Used when stt_provider == "openai_realtime".

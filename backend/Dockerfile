@@ -22,7 +22,8 @@ COPY . .
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8080
 
-# Production command — 4 workers, H11 for HTTP/1.1 compat behind reverse proxy
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Production command — reads $PORT injected by Cloud Run (default 8080)
+# Shell form is required so the $PORT variable is expanded at runtime
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 4

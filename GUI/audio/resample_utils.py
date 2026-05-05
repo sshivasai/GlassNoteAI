@@ -15,7 +15,7 @@ Windows devices report one of these native rates:
 
 STT targets                                    # ← UPDATED
 -------
-  TARGET_SR     = 16 000 Hz  →  Deepgram (nova-2, nova-3, flux-general-en)
+  TARGET_SR     = 16 000 Hz  →  Deepgram (nova-2, nova-3, flux-general-multi)
   TARGET_SR_OAI = 24 000 Hz  →  OpenAI Realtime (gpt-4o-transcribe family)
 
 Common conversions
