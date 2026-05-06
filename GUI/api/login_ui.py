@@ -79,6 +79,10 @@ class LoginWindow(QWidget):
         self._loading_timer = None
         self._loading_dots  = 0
 
+        # OAuth listener tracking — ensures only one listener thread runs at a time
+        self._oauth_listener_thread: threading.Thread = None
+        self._oauth_stop_event: threading.Event = None
+
         url = _api_url()
         auth_client.configure(url)
 
@@ -231,43 +235,98 @@ class LoginWindow(QWidget):
         otherwise the OAuth redirect arrives before the server is ready and
         the user sees ERR_CONNECTION_REFUSED.  A threading.Event is used to
         signal readiness from the listener thread back to this method.
+
+        port_holder is a mutable list populated by the listener thread with
+        the actual port that was successfully bound.  The browser is then
+        opened with a redirect_uri that matches that port.
+
+        Any previously running listener thread is stopped before a new one
+        is started, preventing port exhaustion across multiple OAuth attempts.
+
+        # Ensure http://localhost:9999/callback, http://localhost:9998/callback,
+        # http://localhost:9997/callback are all registered in Google OAuth console
         """
+        # ── Stop any previously running listener thread ───────────────────────
+        if self._oauth_stop_event is not None:
+            self._oauth_stop_event.set()
+        if self._oauth_listener_thread is not None and self._oauth_listener_thread.is_alive():
+            self._oauth_listener_thread.join(timeout=2.0)
+
         self._show_status("🌐 Complete sign-in in your browser…", "neutral")
 
         # Event set by the listener thread once the server socket is bound
         server_ready = threading.Event()
+        # Populated by the listener thread with the port that was bound
+        port_holder: list = []
+        # Event used to signal the listener thread to stop early
+        self._oauth_stop_event = threading.Event()
 
-        listener = threading.Thread(
+        self._oauth_listener_thread = threading.Thread(
             target=self._listen_for_google_callback,
-            args=(server_ready,),
+            args=(server_ready, port_holder, self._oauth_stop_event),
             daemon=True, name="google-cb"
         )
-        listener.start()
+        self._oauth_listener_thread.start()
 
         # Wait up to 3 s for the server to bind before opening the browser.
         # On a healthy machine this takes < 10 ms; 3 s is a generous safety net.
         if not server_ready.wait(timeout=3.0):
             self._sig_error.emit(
-                "Could not start local OAuth server. Port 9999 may be in use."
+                "Could not start local OAuth server. All fallback ports may be in use."
             )
             return
 
+        if not port_holder:
+            # Listener set server_ready but could not bind any port
+            return
+
+        # Build the OAuth URL with the redirect_uri that matches the bound port
+        used_port = port_holder[0]
+        redirect_uri = f"http://localhost:{used_port}/callback"
+        # Replace the redirect_uri in the URL provided by the backend
+        import urllib.parse as _up
+        parsed = _up.urlparse(url)
+        qs = _up.parse_qs(parsed.query, keep_blank_values=True)
+        qs["redirect_uri"] = [redirect_uri]
+        new_query = _up.urlencode(qs, doseq=True)
+        final_url = _up.urlunparse(parsed._replace(query=new_query))
+
         try:
-            webbrowser.open(url)
+            webbrowser.open(final_url)
         except Exception:
             try:
-                subprocess.Popen(["start", url], shell=True)
+                subprocess.Popen(["start", final_url], shell=True)
             except Exception as e:
                 self._sig_error.emit(f"Could not open browser: {e}")
 
-    def _listen_for_google_callback(self, server_ready: threading.Event = None):
+    # Ports tried in order when binding the local OAuth callback server.
+    # Ensure http://localhost:9999/callback, http://localhost:9998/callback,
+    # http://localhost:9997/callback are all registered in Google OAuth console
+    _FALLBACK_PORTS = [9999, 9998, 9997]
+
+    def _listen_for_google_callback(
+        self,
+        server_ready: threading.Event = None,
+        port_holder: list = None,
+        stop_event: threading.Event = None,
+    ):
         """
-        Bind a local HTTP server on port 9999, signal readiness, then wait
-        for the Google OAuth redirect to deliver the authorization code.
+        Bind a local HTTP server on the first available port from
+        _FALLBACK_PORTS, signal readiness, then wait for the Google OAuth
+        redirect to deliver the authorization code.
 
         The server_ready Event (if provided) is set immediately after the
         socket is successfully bound so the caller can open the browser only
         once the server is actually listening.
+
+        port_holder (if provided) is populated with the port that was
+        successfully bound before server_ready is set, so the caller can
+        build the correct redirect_uri.
+
+        stop_event (if provided) can be set externally to terminate the
+        request loop early (e.g. when a new OAuth attempt is started).
+        server.timeout = 1.0 ensures handle_request() does not block
+        indefinitely, allowing stop_event to be checked each second.
 
         http.server must NOT be in the PyInstaller excludes list — it is
         required here.  See glassnote.spec.
@@ -287,25 +346,54 @@ class LoginWindow(QWidget):
                 self.send_response(200); self.send_header("Content-type","text/html"); self.end_headers()
                 self.wfile.write(html); self.server.should_stop = True
 
-        try:
-            srv = http.server.HTTPServer(("localhost", 9999), _H)
-        except OSError:
-            self._sig_error.emit("Port 9999 is in use. Close other apps and retry.")
+        class _ReuseAddrHTTPServer(http.server.HTTPServer):
+            allow_reuse_address = True
+
+        # Try each fallback port in order; use the first one that binds
+        server = None
+        used_port = None
+        for port in self._FALLBACK_PORTS:
+            try:
+                server = _ReuseAddrHTTPServer(("localhost", port), _H)
+                used_port = port
+                break
+            except OSError:
+                continue
+
+        if server is None:
+            # All ports are busy — signal the caller so it doesn't hang
+            self._sig_error.emit(
+                "All OAuth callback ports (9999, 9998, 9997) are in use. "
+                "Close other apps and retry."
+            )
             if server_ready is not None:
-                server_ready.set()   # unblock caller so it doesn't hang
+                server_ready.set()
             return
 
         # ── Server socket is now bound and listening ──────────────────────────
-        # Signal the caller BEFORE entering the request loop so the browser
-        # is opened only after we are guaranteed to be accepting connections.
+        # Populate port_holder BEFORE setting server_ready so the caller sees
+        # the port as soon as it unblocks from server_ready.wait().
+        if port_holder is not None:
+            port_holder.append(used_port)
         if server_ready is not None:
             server_ready.set()
 
-        srv.should_stop = False; srv.timeout = 0.5
-        for _ in range(360):
-            srv.handle_request()
-            if srv.should_stop: break
-        srv.server_close()
+        # timeout=1.0 so handle_request() unblocks every second, allowing
+        # stop_event to be checked promptly without busy-waiting.
+        server.should_stop = False
+        server.timeout = 1.0
+        try:
+            while not (stop_event is not None and stop_event.is_set()):
+                server.handle_request()
+                if server.should_stop:
+                    break
+        finally:
+            server.server_close()
+
+        # If stop_event was set externally, do not emit any result signals —
+        # a new OAuth attempt is already in progress.
+        if stop_event is not None and stop_event.is_set():
+            return
 
         code = code_holder[0] or ""
         if code and not code.startswith("ERR:"):

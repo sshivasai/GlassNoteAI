@@ -206,6 +206,10 @@ except Exception:
 if os.path.exists("Logo.png"):
     datas += [("Logo.png", ".")]
 
+# Google sign-in icon (must be bundled for .exe — path resolved via sys._MEIPASS)
+if os.path.exists("icons8-google-96.png"):
+    datas += [("icons8-google-96.png", ".")]
+
 # ── Binaries (native DLLs that PyInstaller may miss) ──────────────────────────
 binaries = []
 
@@ -240,7 +244,8 @@ a = Analysis(
         "pytest",
         "setuptools",
         # Note: "html" module is used by overlay/answer.py, DO NOT exclude
-        "http.server",
+        # Note: "http.server" is used by login_ui.py for the Google OAuth local
+        #       callback server on port 9999 — DO NOT exclude it.
         "xmlrpc",
         "unittest",
         "pydoc",
