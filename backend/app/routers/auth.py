@@ -132,6 +132,9 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
         to_address   = To(email)
         reply_to     = ReplyTo(settings.reply_email, "GlassNote Support")
 
+        # Logo URL - use publicly hosted logo (configure via EMAIL_LOGO_URL env var)
+        logo_url = getattr(settings, "email_logo_url", "https://glassnoteai.com/logo.png")
+
         html_body = f"""
         <!DOCTYPE html>
         <html><head><meta charset="utf-8"></head>
@@ -139,8 +142,9 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
           <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
             <table width="480" cellpadding="0" cellspacing="0"
                    style="background:#111115;border-radius:16px;border:1px solid #1e1e24;overflow:hidden;">
-              <tr><td style="background:#111115;padding:28px 36px 20px;border-bottom:1px solid #1e1e24;">
-                <span style="color:#5b8ff9;font-size:22px;font-weight:700;letter-spacing:-0.5px;">◈ GlassNote</span>
+              <tr><td style="background:#111115;padding:28px 36px 20px;border-bottom:1px solid #1e1e24;text-align:center;">
+                <img src="{logo_url}" alt="GlassNote" style="height:36px;width:auto;display:inline-block;vertical-align:middle;" />
+                <span style="color:#5b8ff9;font-size:22px;font-weight:700;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">GlassNote</span>
               </td></tr>
               <tr><td style="padding:32px 36px;">
                 <p style="color:#e0e0e8;font-size:15px;margin:0 0 8px;">Your verification code:</p>
@@ -152,8 +156,8 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
                 <p style="color:#888;font-size:13px;margin:0 0 6px;">⏱ This code expires in {OTP_TTL_MINUTES} minutes.</p>
                 <p style="color:#555;font-size:12px;margin:0;">If you didn't create a GlassNote account, you can safely ignore this email.</p>
               </td></tr>
-              <tr><td style="padding:16px 36px;border-top:1px solid #1e1e24;">
-                <p style="color:#555;font-size:11px;margin:0;">© 2025 GlassNote AI • <a href="https://glassnoteai.com" style="color:#5b8ff9;">glassnote.ai</a></p>
+              <tr><td style="padding:16px 36px;border-top:1px solid #1e1e24;text-align:center;">
+                <p style="color:#555;font-size:11px;margin:0;">© 2025 GlassNote AI • <a href="https://glassnoteai.com" style="color:#5b8ff9;text-decoration:none;">glassnote.ai</a></p>
               </td></tr>
             </table>
           </td></tr></table>

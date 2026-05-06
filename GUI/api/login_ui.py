@@ -4,6 +4,22 @@ Thread-safe via internal pyqtSignals (not QTimer.singleShot from threads).
 """
 import os, re, sys, threading, webbrowser, subprocess
 
+
+def resource_path(relative_path: str) -> str:
+    """
+    Get absolute path to a bundled resource.
+
+    Works both when running from source and when packaged by PyInstaller.
+    PyInstaller extracts files to sys._MEIPASS at runtime; without this
+    helper, os.path.join(__file__) traversal breaks in the .exe because
+    the directory structure inside _MEIPASS differs from the source tree.
+    """
+    if hasattr(sys, "_MEIPASS"):
+        # Running inside a PyInstaller .exe — files land at _MEIPASS root
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Running from source — files are at the GUI/ root (one level above api/)
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), relative_path)
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QFrame, QWidget, QStackedWidget, QApplication
@@ -131,7 +147,9 @@ class LoginWindow(QWidget):
         self._btn_google = QPushButton("  Continue with Google")
         self._btn_google.setObjectName("google_btn")
         self._btn_google.setCursor(Qt.CursorShape.PointingHandCursor)
-        _g_px = QPixmap(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "icons8-google-96.png"))
+        # Use resource_path() so the icon resolves correctly in both source
+        # and PyInstaller .exe (where sys._MEIPASS is the extraction root).
+        _g_px = QPixmap(resource_path("icons8-google-96.png"))
         if not _g_px.isNull():
             self._btn_google.setIcon(QIcon(_g_px))
         self._btn_google.clicked.connect(self._on_google_signin)
@@ -206,8 +224,34 @@ class LoginWindow(QWidget):
         )
 
     def _launch_google_browser(self, url: str):
-        """Open Google OAuth URL in the default browser."""
+        """
+        Start the local OAuth callback server FIRST, then open the browser.
+
+        The server must be bound and listening before the browser is opened,
+        otherwise the OAuth redirect arrives before the server is ready and
+        the user sees ERR_CONNECTION_REFUSED.  A threading.Event is used to
+        signal readiness from the listener thread back to this method.
+        """
         self._show_status("🌐 Complete sign-in in your browser…", "neutral")
+
+        # Event set by the listener thread once the server socket is bound
+        server_ready = threading.Event()
+
+        listener = threading.Thread(
+            target=self._listen_for_google_callback,
+            args=(server_ready,),
+            daemon=True, name="google-cb"
+        )
+        listener.start()
+
+        # Wait up to 3 s for the server to bind before opening the browser.
+        # On a healthy machine this takes < 10 ms; 3 s is a generous safety net.
+        if not server_ready.wait(timeout=3.0):
+            self._sig_error.emit(
+                "Could not start local OAuth server. Port 9999 may be in use."
+            )
+            return
+
         try:
             webbrowser.open(url)
         except Exception:
@@ -215,13 +259,19 @@ class LoginWindow(QWidget):
                 subprocess.Popen(["start", url], shell=True)
             except Exception as e:
                 self._sig_error.emit(f"Could not open browser: {e}")
-                return
-        threading.Thread(
-            target=self._listen_for_google_callback,
-            daemon=True, name="google-cb"
-        ).start()
 
-    def _listen_for_google_callback(self):
+    def _listen_for_google_callback(self, server_ready: threading.Event = None):
+        """
+        Bind a local HTTP server on port 9999, signal readiness, then wait
+        for the Google OAuth redirect to deliver the authorization code.
+
+        The server_ready Event (if provided) is set immediately after the
+        socket is successfully bound so the caller can open the browser only
+        once the server is actually listening.
+
+        http.server must NOT be in the PyInstaller excludes list — it is
+        required here.  See glassnote.spec.
+        """
         import http.server, urllib.parse
         code_holder = [None]
 
@@ -241,7 +291,16 @@ class LoginWindow(QWidget):
             srv = http.server.HTTPServer(("localhost", 9999), _H)
         except OSError:
             self._sig_error.emit("Port 9999 is in use. Close other apps and retry.")
+            if server_ready is not None:
+                server_ready.set()   # unblock caller so it doesn't hang
             return
+
+        # ── Server socket is now bound and listening ──────────────────────────
+        # Signal the caller BEFORE entering the request loop so the browser
+        # is opened only after we are guaranteed to be accepting connections.
+        if server_ready is not None:
+            server_ready.set()
+
         srv.should_stop = False; srv.timeout = 0.5
         for _ in range(360):
             srv.handle_request()
@@ -256,7 +315,7 @@ class LoginWindow(QWidget):
                 on_error=lambda m: self._sig_error.emit(m),
             )
         elif code.startswith("ERR:"):
-            self._sig_error.emit(f"Google sign-in was cancelled.")
+            self._sig_error.emit("Google sign-in was cancelled.")
         else:
             self._sig_error.emit("Google sign-in timed out. Please try again.")
 
