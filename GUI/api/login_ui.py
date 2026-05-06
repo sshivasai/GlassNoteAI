@@ -17,8 +17,8 @@ from settings import config
 from utils import theme as th
 
 LOGO_PATH    = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Logo.png")
-WEBSITE_URL  = "https://glassnote.ai"
-DASHBOARD_URL = "https://glassnote.ai/dashboard"
+WEBSITE_URL  = "https://glassnoteai.com"
+DASHBOARD_URL = "https://glassnoteai.com/dashboard"
 
 def _api_url() -> str:
     url = config.get("glassnote_api_url", "http://localhost:8000") or "http://localhost:8000"

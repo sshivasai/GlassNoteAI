@@ -217,7 +217,7 @@ async def start_session(
                     f"Session limit reached ({used}/{plan_limit} sessions on '{plan}' plan). "
                     "Please upgrade your plan to continue."
                 ),
-                "upgrade_url": "https://glassnote.ai/dashboard/billing",
+                "upgrade_url": "https://glassnoteai.com/dashboard/billing",
             },
         )
 

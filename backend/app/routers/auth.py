@@ -153,7 +153,7 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
                 <p style="color:#555;font-size:12px;margin:0;">If you didn't create a GlassNote account, you can safely ignore this email.</p>
               </td></tr>
               <tr><td style="padding:16px 36px;border-top:1px solid #1e1e24;">
-                <p style="color:#555;font-size:11px;margin:0;">© 2025 GlassNote AI • <a href="https://glassnote.ai" style="color:#5b8ff9;">glassnote.ai</a></p>
+                <p style="color:#555;font-size:11px;margin:0;">© 2025 GlassNote AI • <a href="https://glassnoteai.com" style="color:#5b8ff9;">glassnote.ai</a></p>
               </td></tr>
             </table>
           </td></tr></table>

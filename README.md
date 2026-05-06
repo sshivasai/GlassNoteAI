@@ -272,8 +272,8 @@ GlassNote is built with amazing open-source technologies:
 
 <div align="center">
 
-**Made with ❤️ by the GlassNote team**
+**Made with ❤️ by the GlassNote**
 
-[Website](https://glassnote.ai) • [GitHub](https://github.com/sshivasai/GlassNoteAI) • [Documentation](https://docs.glassnote.ai)
+[Website](https://glassnoteai.com) • [GitHub](https://github.com/sshivasai/GlassNoteAI) • [Documentation](https://api.glassnoteai.com/docs)
 
 </div>

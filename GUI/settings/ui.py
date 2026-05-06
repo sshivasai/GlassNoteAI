@@ -204,7 +204,7 @@ class SettingsWindow(QWidget):
 
         dash_btn = QPushButton("\U0001f310  Open Dashboard")
         dash_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        dash_btn.clicked.connect(lambda: self._open_url("https://glassnote.ai/dashboard"))
+        dash_btn.clicked.connect(lambda: self._open_url("https://glassnoteai.com/dashboard"))
         acct_row.addWidget(dash_btn)
         acct_row.addStretch()
         layout.addLayout(acct_row)

@@ -42,8 +42,8 @@ _ONE_TIME_PLANS  = get_one_time_plans()
 
 class CheckoutRequest(BaseModel):
     plan: str  # "base", "unlimited" (free doesn't require payment; BYOK is now a toggle)
-    success_url: str = "https://glassnote.ai/billing/success"
-    cancel_url: str  = "https://glassnote.ai/billing/cancel"
+    success_url: str = "https://glassnoteai.com/billing/success"
+    cancel_url: str  = "https://glassnoteai.com/billing/cancel"
 
 
 # ── Create Checkout Session ───────────────────────────────────────────────────
@@ -167,7 +167,7 @@ async def create_portal(
 
         session = stripe.billing_portal.Session.create(
             customer=customer_id,
-            return_url="https://glassnote.ai/settings",
+            return_url="https://glassnoteai.com/settings",
         )
 
         return {"portal_url": session.url}

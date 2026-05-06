@@ -623,7 +623,7 @@ def generate_inno_setup():
 #define AppName       "{APP_NAME}"
 #define AppVersion    "{APP_VERSION}"
 #define AppPublisher  "GlassNote AI"
-#define AppURL        "https://glassnote.ai"
+#define AppURL        "https://glassnoteai.com"
 #define AppExeName    "{EXE_NAME}.exe"
 #define AppExePath    "{exe_path}"
 
