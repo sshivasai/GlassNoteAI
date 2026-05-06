@@ -756,7 +756,7 @@ class AudioPipeline(QThread):
                 import httpx as _httpx
                 from api.auth_client import _keyring_load
                 token   = _keyring_load() or cfg.get("glassnote_api_token", "")
-                api_url = cfg.get("glassnote_api_url", "http://localhost:8000").rstrip("/")
+                api_url = cfg.get("glassnote_api_url", "https://api.glassnoteai.com").rstrip("/")
                 r = _httpx.get(
                     f"{api_url}/v1/proxy/stt-credentials",
                     headers={"Authorization": f"Bearer {token}"},

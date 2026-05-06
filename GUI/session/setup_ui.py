@@ -971,7 +971,7 @@ class SessionSetupWindow(QWidget):
         if hasattr(self, "_inline_signin_btn"):
             self._inline_signin_btn.hide()
 
-        api_url = cfg.get("glassnote_api_url", "http://localhost:8000").rstrip("/")
+        api_url = cfg.get("glassnote_api_url", "https://api.glassnoteai.com").rstrip("/")
         self.error_label.setText("")
         self._set_loading(True, "Verifying plan...")
         self._pending_provider = provider

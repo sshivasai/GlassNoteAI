@@ -210,7 +210,7 @@ def initialise(api_url: str = "", background: bool = True) -> None:
       3. If backend unreachable and no cache: use bundled fallback
 
     Args:
-        api_url:    GlassNote API base URL (e.g. "http://localhost:8000").
+        api_url:    GlassNote API base URL (e.g. "https://api.glassnoteai.com").
                     If empty, only cache/fallback are used.
         background: Whether to run the backend fetch in a background thread.
     """
