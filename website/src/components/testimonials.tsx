@@ -23,7 +23,7 @@ function Stars({ count }: { count: number }) {
 
 export async function Testimonials() {
   // Fetch live from backend; only show if testimonials exist (no fallback)
-  let testimonials = await fetchPublicTestimonials(6);
+  const testimonials = await fetchPublicTestimonials(6);
 
   // If no testimonials, don't render the section at all
   if (!testimonials || testimonials.length === 0) {

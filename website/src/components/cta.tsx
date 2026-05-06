@@ -1,12 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth-context";
 import { DOWNLOAD_URL } from "@/lib/config";
 
 export function CTA() {
-  const { openAuth } = useAuth();
-
   return (
     <section className="relative py-20 px-4 overflow-hidden">
       {/* Background glow */}

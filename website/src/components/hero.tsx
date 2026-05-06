@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/lib/auth-context";
 import { Mic, Monitor, Cpu, Activity, Bot, EyeOff } from "lucide-react";
 import { DOWNLOAD_URL } from "@/lib/config";
 
@@ -11,7 +10,6 @@ type Tab = 'stt' | 'screen' | 'model' | 'perf' | 'stealth';
 
 export function Hero() {
   const [activeTab, setActiveTab] = useState<Tab>('stt');
-  const { openAuth } = useAuth();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 pb-20 px-4 overflow-hidden perspective-1000">

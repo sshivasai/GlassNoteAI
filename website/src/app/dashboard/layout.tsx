@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { LayoutDashboard, CreditCard, BarChart3, Settings, LogOut, Download } from "lucide-react";
+import { LayoutDashboard, CreditCard, BarChart3, Settings, LogOut } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -34,10 +34,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   const navItems = [
-    { name: "Overview",  href: "/dashboard",          icon: LayoutDashboard },
-    { name: "Usage",     href: "/dashboard/usage",     icon: BarChart3 },
-    { name: "Billing",   href: "/dashboard/billing",   icon: CreditCard },
-    { name: "Settings",  href: "/dashboard/settings",  icon: Settings },
+    { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Usage", href: "/dashboard/usage", icon: BarChart3 },
+    { name: "Billing", href: "/dashboard/billing", icon: CreditCard },
+    { name: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
   const initials = ((user.first_name?.[0] || "") + (user.last_name?.[0] || "")).toUpperCase() || user.email[0].toUpperCase();
@@ -61,11 +61,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
                     ? "bg-[rgba(0,217,255,0.1)] text-[var(--cyan)]"
                     : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
-                }`}
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-medium text-sm">{item.name}</span>

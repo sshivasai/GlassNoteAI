@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
 import { useAuth } from "@/lib/auth-context";
-import { fetchApi, setToken, API_BASE_URL } from "@/lib/api";
+import { fetchApi, setToken } from "@/lib/api";
 import { X, Loader2, ArrowLeft } from "lucide-react";
 
 /* ─── Toast notification ──────────────────────────────────────────────── */
@@ -34,7 +34,6 @@ function Toast({ message, type, onClose }: { message: string; type: "error" | "s
 function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }) {
   const btnRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
-  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
     // Load Google Identity Services script
@@ -61,12 +60,15 @@ function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }
     }
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).google?.accounts?.id?.initialize({
         client_id: clientId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         callback: (response: any) => {
           if (response.credential) onSuccess(response.credential);
         },
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).google?.accounts?.id?.renderButton(btnRef.current, {
         type: "standard",
         theme: "filled_black",
@@ -75,10 +77,8 @@ function GoogleButton({ onSuccess }: { onSuccess: (credential: string) => void }
         text: "continue_with",
         shape: "pill",
       });
-      setRendered(true);
     } catch (e) {
       console.error("Google SSO init error:", e);
-      setRendered(false);
     }
   }, [ready, onSuccess]);
 
@@ -198,8 +198,8 @@ export function AuthModal() {
       setAuthView("otp");
       setResendTimer(60);
       setToast({ message: data.message || "Verification code sent!", type: "success" });
-    } catch (err: any) {
-      const msg = err.message || "Registration failed.";
+    } catch (err: unknown) {
+      const msg = (err as Error).message || "Registration failed.";
       if (msg.toLowerCase().includes("already have an account")) {
         setToast({ message: msg + " Switching to sign in...", type: "info" });
         setTimeout(() => switchView("login"), 2000);
@@ -225,8 +225,8 @@ export function AuthModal() {
       await refreshUser();
       handleClose();
       router.push("/dashboard");
-    } catch (err: any) {
-      const msg = err.message || "Login failed.";
+    } catch (err: unknown) {
+      const msg = (err as Error).message || "Login failed.";
       if (msg.toLowerCase().includes("verify your email")) {
         // Backend auto-resent OTP — go to OTP screen
         setOtpEmail(email);
@@ -262,8 +262,8 @@ export function AuthModal() {
         handleClose();
         router.push("/dashboard");
       }, 1000);
-    } catch (err: any) {
-      setToast({ message: err.message || "Verification failed.", type: "error" });
+    } catch (err: unknown) {
+      setToast({ message: (err as Error).message || "Verification failed.", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -279,8 +279,8 @@ export function AuthModal() {
       });
       setResendTimer(60);
       setToast({ message: "A new code has been sent to your email.", type: "success" });
-    } catch (err: any) {
-      setToast({ message: err.message || "Failed to resend code.", type: "error" });
+    } catch (err: unknown) {
+      setToast({ message: (err as Error).message || "Failed to resend code.", type: "error" });
     }
   };
 
@@ -297,8 +297,8 @@ export function AuthModal() {
       await refreshUser();
       handleClose();
       router.push("/dashboard");
-    } catch (err: any) {
-      setToast({ message: err.message || "Google sign-in failed.", type: "error" });
+    } catch (err: unknown) {
+      setToast({ message: (err as Error).message || "Google sign-in failed.", type: "error" });
     } finally {
       setLoading(false);
     }
@@ -331,8 +331,8 @@ export function AuthModal() {
               {authView === "otp"
                 ? `Enter the 6-digit code sent to ${otpEmail}`
                 : authView === "signup"
-                ? "Start using GlassNote for free"
-                : "Sign in to your GlassNote account"}
+                  ? "Start using GlassNote for free"
+                  : "Sign in to your GlassNote account"}
             </p>
           </div>
 

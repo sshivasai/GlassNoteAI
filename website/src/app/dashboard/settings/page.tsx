@@ -40,8 +40,8 @@ export default function SettingsPage() {
       });
       await refreshUser();
       setToast({ message: "Profile updated successfully.", type: "success" });
-    } catch (err: any) {
-      setToast({ message: err.message || "Failed to update profile.", type: "error" });
+    } catch (err: unknown) {
+      setToast({ message: (err as Error).message || "Failed to update profile.", type: "error" });
     } finally {
       setSaving(false);
     }
@@ -62,8 +62,8 @@ export default function SettingsPage() {
       removeToken();
       logout();
       router.push("/");
-    } catch (err: any) {
-      setToast({ message: err.message || "Failed to delete account.", type: "error" });
+    } catch (err: unknown) {
+      setToast({ message: (err as Error).message || "Failed to delete account.", type: "error" });
     } finally {
       setDeleting(false);
     }
@@ -87,9 +87,9 @@ export default function SettingsPage() {
         message: result.message,
         type: "success"
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setToast({
-        message: err.message || "Failed to toggle BYOK.",
+        message: (err as Error).message || "Failed to toggle BYOK.",
         type: "error"
       });
       // Revert checkbox on error

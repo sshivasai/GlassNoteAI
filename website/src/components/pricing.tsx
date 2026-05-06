@@ -100,6 +100,7 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: false, auto_capture: false, prompt_caching: false, response_cache: true, auto_model_routing: false, http2_pooling: true, priority_support: false },
     stt_providers: ["deepgram"],
+    byok_allowed: true,
     badge_color: "#888888",
     sort_order: 0,
   },
@@ -116,6 +117,7 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: false },
     stt_providers: ["deepgram"],
+    byok_allowed: true,
     badge_color: "#4f8ef7",
     sort_order: 1,
   },
@@ -132,6 +134,7 @@ const FALLBACK_PLANS: Plan[] = [
     allowed_models: [],
     features: { smart_answering: true, auto_capture: true, prompt_caching: true, response_cache: true, auto_model_routing: true, http2_pooling: true, priority_support: true },
     stt_providers: ["deepgram", "openai_realtime"],
+    byok_allowed: true,
     badge_color: "#f59e0b",
     sort_order: 2,
   },
@@ -197,8 +200,8 @@ export async function Pricing() {
               <div
                 key={plan.id}
                 className={`relative p-8 rounded-2xl border flex flex-col w-full md:w-[calc(50%-12px)] xl:w-[calc(25%-18px)] min-w-[280px] card-3d glass-panel ${isPopular
-                    ? "border-[var(--cyan)] shadow-[0_0_40px_rgba(79,142,247,0.15)] md:-translate-y-4 md:scale-105 z-10"
-                    : "border-[var(--border)] hover:border-[var(--border-glow)]"
+                  ? "border-[var(--cyan)] shadow-[0_0_40px_rgba(79,142,247,0.15)] md:-translate-y-4 md:scale-105 z-10"
+                  : "border-[var(--border)] hover:border-[var(--border-glow)]"
                   }`}
                 style={{
                   animation: `fadeIn 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards`,

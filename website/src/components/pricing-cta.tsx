@@ -24,7 +24,11 @@ export function PricingCTA({ planId, label, isPopular }: PricingCTAProps) {
 
     // Free plan — just get started (no billing needed)
     if (planId === "free") {
-      isAuthenticated ? router.push("/dashboard") : openAuth("signup");
+      if (isAuthenticated) {
+        router.push("/dashboard");
+      } else {
+        openAuth("signup");
+      }
       return;
     }
     // Paid plans — need billing
@@ -41,13 +45,12 @@ export function PricingCTA({ planId, label, isPopular }: PricingCTAProps) {
     <Button
       onClick={handleClick}
       disabled={isComingSoon}
-      className={`w-full h-11 font-semibold ${
-        isComingSoon
-          ? "bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-60"
-          : isPopular
+      className={`w-full h-11 font-semibold ${isComingSoon
+        ? "bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-60"
+        : isPopular
           ? "bg-[var(--cyan)] text-black hover:bg-[#00f0ff]"
           : "border border-[var(--border)] text-white hover:bg-[var(--cyan-dim)]"
-      }`}
+        }`}
     >
       {isComingSoon ? "Coming Soon" : label}
     </Button>

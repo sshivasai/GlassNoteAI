@@ -30,8 +30,8 @@ export default function BillingPage() {
       if (data.checkout_url) {
         window.location.href = data.checkout_url;
       }
-    } catch (err: any) {
-      setToast(err.message || "Failed to start checkout.");
+    } catch (err: unknown) {
+      setToast((err as Error).message || "Failed to start checkout.");
     } finally {
       setLoading(null);
     }
@@ -44,8 +44,8 @@ export default function BillingPage() {
       if (data.portal_url) {
         window.open(data.portal_url, "_blank");
       }
-    } catch (err: any) {
-      setToast(err.message || "Failed to open billing portal.");
+    } catch (err: unknown) {
+      setToast((err as Error).message || "Failed to open billing portal.");
     } finally {
       setLoading(null);
     }
@@ -117,11 +117,10 @@ export default function BillingPage() {
           return (
             <div
               key={plan.id}
-              className={`p-5 rounded-xl border transition-colors ${
-                isCurrent
+              className={`p-5 rounded-xl border transition-colors ${isCurrent
                   ? "border-[var(--cyan)] bg-[rgba(0,217,255,0.05)]"
                   : "border-[var(--border)] bg-[var(--bg-card)] hover:border-[var(--border-glow)]"
-              }`}
+                }`}
             >
               <h3 className="text-lg font-bold text-white mb-1">{plan.display_name}</h3>
               <p className="text-2xl font-black text-white mb-1">{plan.price_display}</p>
