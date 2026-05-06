@@ -1,10 +1,11 @@
-# GlassNote AI
+# GlassNote AI <img width="40" height="40" alt="image" src="https://glassnoteai.com/Logo.png" />
 
 
 <div align="center">
+  
 
   www.glassnoteai.com
- <img width="585" height="587" alt="image" src="https://github.com/user-attachments/assets/8cdcd609-722e-4530-94f8-b7fe6d8e3253" />
+
 
   
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
