@@ -6,7 +6,7 @@ const footerLinks = {
     { label: "Features", href: "#features" },
     { label: "Pricing", href: "#pricing" },
     { label: "How It Works", href: "#how-it-works" },
-    { label: "Download", href: DOWNLOAD_URL },
+    { label: "Download", href: DOWNLOAD_URL, external: true },
   ],
   resources: [
     { label: "GitHub", href: "https://github.com/sshivasai/GlassNoteAI", external: true },

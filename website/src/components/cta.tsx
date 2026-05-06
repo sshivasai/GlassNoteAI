@@ -25,7 +25,7 @@ export function CTA() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <a href={DOWNLOAD_URL} download>
+          <a href={DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
             <Button
               size="lg"
               className="bg-[var(--cyan)] text-white hover:opacity-90 font-semibold px-8 h-12 flex items-center gap-2 shadow-[0_0_20px_var(--cyan-dim)] transition-transform duration-300 hover:scale-105"

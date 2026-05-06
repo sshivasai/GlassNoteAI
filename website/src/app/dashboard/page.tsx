@@ -84,7 +84,7 @@ export default function DashboardOverview() {
           </p>
 
           <div className="space-y-3">
-            <a href={DOWNLOAD_URL} download className="block w-full">
+            <a href={DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className="block w-full">
               <Button className="w-full justify-between bg-[var(--cyan)] text-white hover:opacity-90">
                 <span className="flex items-center gap-2">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
