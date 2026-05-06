@@ -1,4 +1,5 @@
 # GlassNote AI
+www.glassnoteai.com
 
 <div align="center">
 
