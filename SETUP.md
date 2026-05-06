@@ -498,7 +498,7 @@ pip install PyQt6
 ## 🆘 Getting Help
 
 - **Documentation**: [README.md](README.md)
-- **Support Email**: [support@glassnote.ai](mailto:support@glassnote.ai)
+- **Support Email**: [support@glassnoteai.com](mailto:support@glassnoteai.com)
 - **GitHub Issues**: [Report a bug](https://github.com/sshivasai/GlassNoteAI/issues)
 - **Discord**: [Join our community](#) (Coming soon)
 
