@@ -37,7 +37,7 @@ WEBSITE_URL  = "https://glassnoteai.com"
 DASHBOARD_URL = "https://glassnoteai.com/dashboard"
 
 def _api_url() -> str:
-    url = config.get("glassnote_api_url", "http://localhost:8000") or "http://localhost:8000"
+    url = config.get("glassnote_api_url", "https://api.glassnoteai.com") or "https://api.glassnoteai.com"
     return url.rstrip("/")
 
 _DARK = {

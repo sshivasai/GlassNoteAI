@@ -199,9 +199,10 @@ DEFAULTS = {
 
     # ── GlassNote API (SaaS mode) ─────────────────────────────────────────────
     # When glassnote_api_token is set, the app routes LLM/STT calls
-    # through api.glassnote.ai instead of directly to providers.
+    # through api.glassnoteai.com instead of directly to providers.
     # Provider API keys are NOT needed in SaaS mode.
-    "glassnote_api_url":   "http://localhost:8000",   # no trailing slash
+    # Override via env var GLASSNOTE_API_URL for local development.
+    "glassnote_api_url":   os.environ.get("GLASSNOTE_API_URL", "https://api.glassnoteai.com"),   # no trailing slash
     "glassnote_api_token": "",
     "glassnote_user_email": "",
     "glassnote_user_plan":  "",                        # set after login
