@@ -133,7 +133,8 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
         reply_to     = ReplyTo(settings.reply_email, "GlassNote Support")
 
         # Logo URL - use publicly hosted logo (configure via EMAIL_LOGO_URL env var)
-        logo_url = getattr(settings, "email_logo_url", "https://glassnoteai.com/logo.png")
+        # NOTE: Capital 'L' in Logo.png — Linux servers are case-sensitive
+        logo_url = getattr(settings, "email_logo_url", "https://glassnoteai.com/Logo.png")
 
         html_body = f"""
         <!DOCTYPE html>
@@ -143,7 +144,13 @@ async def _send_otp_email(email: str, code: str, settings) -> None:
             <table width="480" cellpadding="0" cellspacing="0"
                    style="background:#111115;border-radius:16px;border:1px solid #1e1e24;overflow:hidden;">
               <tr><td style="background:#111115;padding:28px 36px 20px;border-bottom:1px solid #1e1e24;text-align:center;">
-                <img src="{logo_url}" alt="GlassNote" style="height:36px;width:auto;display:inline-block;vertical-align:middle;" />
+                <a href="https://glassnoteai.com" style="text-decoration:none;display:inline-block;vertical-align:middle;">
+                  <img src="{logo_url}"
+                       alt="GlassNote"
+                       width="160"
+                       height="40"
+                       style="display:block;border:0;max-width:160px;" />
+                </a>
                 <span style="color:#5b8ff9;font-size:22px;font-weight:700;letter-spacing:-0.5px;margin-left:10px;vertical-align:middle;">GlassNote</span>
               </td></tr>
               <tr><td style="padding:32px 36px;">
@@ -477,8 +484,13 @@ async def get_google_auth_url():
     Generate the Google OAuth authorization URL for the desktop app.
 
     The desktop app opens this URL in the system browser. The user logs in
-    with Google. Google redirects to localhost:9999/callback with a 'code'.
-    The desktop app then calls /api/auth/google-callback with that code.
+    with Google. Google redirects to the localhost callback port with a 'code'.
+    The desktop app then calls /api/auth/google-callback with that code AND
+    the redirect_uri it actually used (so the token exchange matches).
+
+    The redirect_uri here is a placeholder — the desktop GUI replaces it with
+    the actual bound port (8765/8766/8767) before opening the browser.
+    All three ports must be registered in the Google OAuth console.
 
     Keeping the client_id server-side means the GUI never needs to know it.
     """
@@ -486,11 +498,13 @@ async def get_google_auth_url():
     if not settings.google_client_id:
         raise HTTPException(500, "Google OAuth not configured on server.")
 
-    # Build Google OAuth URL
+    # Build Google OAuth URL — redirect_uri uses the primary fallback port.
+    # The desktop GUI will replace this with the actual bound port before
+    # opening the browser (see login_ui.py _launch_google_browser).
     import urllib.parse
     params = {
         "client_id":     settings.google_client_id,
-        "redirect_uri":  "http://localhost:9999/callback",
+        "redirect_uri":  "http://localhost:8765/callback",
         "response_type": "code",
         "scope":         "openid email profile",
         "access_type":   "offline",
@@ -503,8 +517,9 @@ async def get_google_auth_url():
 # ── Google OAuth — Code Exchange (desktop callback) ───────────────────────────
 
 class GoogleCallbackRequest(BaseModel):
-    code:      str
-    device_id: str = ""
+    code:         str
+    device_id:    str = ""
+    redirect_uri: str = ""   # The actual redirect_uri used in the OAuth flow (sent by desktop GUI)
 
 @router.post("/google-callback", response_model=TokenResponse)
 async def google_callback(req: GoogleCallbackRequest, db: AsyncSession = Depends(get_db)):
@@ -513,10 +528,20 @@ async def google_callback(req: GoogleCallbackRequest, db: AsyncSession = Depends
 
     Called by the desktop app after receiving the code from the browser redirect.
     The server exchanges the code with Google directly for the id_token.
+
+    The desktop app MUST send the redirect_uri that was actually used in the
+    authorization request (e.g. http://localhost:8765/callback).  Google's token
+    endpoint requires an exact match; using a different port causes a 400 error.
+    Falls back to http://localhost:8765/callback if not provided.
     """
     settings = get_settings()
     if not settings.google_client_id:
         raise HTTPException(500, "Google OAuth not configured on server.")
+
+    # Use the redirect_uri sent by the client; fall back to the primary port.
+    # IMPORTANT: this must exactly match what was used in the authorization URL.
+    effective_redirect_uri = req.redirect_uri or "http://localhost:8765/callback"
+    print(f"[auth] [DIAG] google-callback: received redirect_uri={req.redirect_uri!r}, using={effective_redirect_uri!r}")
 
     # Exchange code for tokens with Google
     try:
@@ -528,10 +553,11 @@ async def google_callback(req: GoogleCallbackRequest, db: AsyncSession = Depends
                     "code":          req.code,
                     "client_id":     settings.google_client_id,
                     "client_secret": getattr(settings, "google_client_secret", ""),
-                    "redirect_uri":  "http://localhost:9999/callback",
+                    "redirect_uri":  effective_redirect_uri,
                     "grant_type":    "authorization_code",
                 },
             )
+        print(f"[auth] [DIAG] Google token exchange: HTTP {r.status_code} — {r.text[:300]}")
         if r.status_code != 200:
             raise HTTPException(401, f"Google token exchange failed: {r.text[:200]}")
         tokens = r.json()

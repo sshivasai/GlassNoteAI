@@ -406,9 +406,10 @@ class AuthClient:
 
     def google_auth_with_code(
         self,
-        code:       str,
-        on_success: Callable[[dict], None],
-        on_error:   Callable[[str], None],
+        code:         str,
+        on_success:   Callable[[dict], None],
+        on_error:     Callable[[str], None],
+        redirect_uri: str = "",
     ):
         """
         Exchange the Google authorization code for a GlassNote token.
@@ -416,11 +417,16 @@ class AuthClient:
         """
         def _do():
             try:
+                payload = {"code": code, "device_id": DEVICE_ID}
+                if redirect_uri:
+                    payload["redirect_uri"] = redirect_uri
+                print(f"[auth] [DIAG] google_auth_with_code: sending redirect_uri={redirect_uri!r} to backend")
                 with httpx.Client(http2=True, timeout=httpx.Timeout(15.0, connect=8.0)) as client:
                     r = client.post(
                         f"{self._api_url}/api/auth/google-callback",
-                        json={"code": code, "device_id": DEVICE_ID},
+                        json=payload,
                     )
+                print(f"[auth] [DIAG] google-callback response: HTTP {r.status_code} — {r.text[:300]}")
                 if r.status_code == 200:
                     data = r.json()
                     self._store_token(

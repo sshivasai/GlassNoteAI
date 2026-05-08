@@ -243,8 +243,8 @@ class LoginWindow(QWidget):
         Any previously running listener thread is stopped before a new one
         is started, preventing port exhaustion across multiple OAuth attempts.
 
-        # Ensure http://localhost:9999/callback, http://localhost:9998/callback,
-        # http://localhost:9997/callback are all registered in Google OAuth console
+        # Ensure http://localhost:8765/callback, http://localhost:8766/callback,
+        # http://localhost:8767/callback are all registered in Google OAuth console
         """
         # ── Stop any previously running listener thread ───────────────────────
         if self._oauth_stop_event is not None:
@@ -300,9 +300,12 @@ class LoginWindow(QWidget):
                 self._sig_error.emit(f"Could not open browser: {e}")
 
     # Ports tried in order when binding the local OAuth callback server.
-    # Ensure http://localhost:9999/callback, http://localhost:9998/callback,
-    # http://localhost:9997/callback are all registered in Google OAuth console
-    _FALLBACK_PORTS = [9999, 9998, 9997]
+    # Ports 9997-9999 fall inside Windows' TCP excluded range 9983-10082
+    # (reserved by Hyper-V/WSL/Docker) and raise PermissionError on bind.
+    # 8765-8767 are outside all known exclusion ranges and bind reliably.
+    # Ensure http://localhost:8765/callback, http://localhost:8766/callback,
+    # http://localhost:8767/callback are all registered in Google OAuth console
+    _FALLBACK_PORTS = [8765, 8766, 8767]
 
     def _listen_for_google_callback(
         self,
@@ -361,10 +364,13 @@ class LoginWindow(QWidget):
                 continue
 
         if server is None:
-            # All ports are busy — signal the caller so it doesn't hang
+            # Could not bind any port — may be in use or blocked by Windows
+            # port reservation (PermissionError / WinError 10013).
             self._sig_error.emit(
-                "All OAuth callback ports (9999, 9998, 9997) are in use. "
-                "Close other apps and retry."
+                "Could not bind OAuth callback port (8765, 8766, or 8767). "
+                "The ports may be in use or blocked by Windows port reservation. "
+                "Close other apps and retry, or check: "
+                "netsh int ipv4 show excludedportrange protocol=tcp"
             )
             if server_ready is not None:
                 server_ready.set()
@@ -397,8 +403,13 @@ class LoginWindow(QWidget):
 
         code = code_holder[0] or ""
         if code and not code.startswith("ERR:"):
+            # Build the redirect_uri that was actually used in the OAuth flow
+            # so the backend can pass the exact same value to Google's token endpoint.
+            actual_redirect_uri = f"http://localhost:{used_port}/callback"
+            print(f"[login_ui] [DIAG] OAuth code received on port={used_port}, redirect_uri={actual_redirect_uri!r}")
             auth_client.google_auth_with_code(
                 code=code,
+                redirect_uri=actual_redirect_uri,
                 on_success=lambda d: self._sig_success.emit(d),
                 on_error=lambda m: self._sig_error.emit(m),
             )
