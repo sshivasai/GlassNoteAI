@@ -213,14 +213,24 @@ export default function SettingsPage() {
             Want more sessions and advanced features?
           </h3>
           <p className="text-sm text-[var(--text-secondary)] mb-4">
-            Upgrade to Base ($29/mo) or Unlimited ($49/mo) for more sessions, longer durations, and premium models.
+            Paid plans are coming soon. Contact us for early access or billing questions.
           </p>
-          <Button
-            onClick={() => router.push("/dashboard/billing")}
-            className="bg-white text-black hover:bg-gray-100 font-semibold"
-          >
-            View Paid Plans
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => router.push("/dashboard/billing")}
+              className="bg-white text-black hover:bg-gray-100 font-semibold"
+            >
+              View Plans
+            </Button>
+            <a
+              href="mailto:support@glassnoteai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-[var(--cyan)] hover:underline"
+            >
+              Contact Support
+            </a>
+          </div>
         </div>
       )}
 

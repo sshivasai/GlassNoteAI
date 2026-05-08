@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
-import { LayoutDashboard, CreditCard, BarChart3, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, CreditCard, BarChart3, Settings, LogOut, LifeBuoy } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -62,8 +62,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 key={item.name}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
-                    ? "bg-[rgba(0,217,255,0.1)] text-[var(--cyan)]"
-                    : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
+                  ? "bg-[rgba(0,217,255,0.1)] text-[var(--cyan)]"
+                  : "text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
                   }`}
               >
                 <Icon className="w-5 h-5" />
@@ -85,6 +85,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <p className="text-xs text-[var(--text-muted)] capitalize">{user.plan} Plan</p>
             </div>
           </div>
+          <a
+            href="mailto:support@glassnoteai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[var(--text-secondary)] hover:bg-white/5 hover:text-white transition-colors mb-1"
+          >
+            <LifeBuoy className="w-5 h-5" />
+            <span className="font-medium text-sm">Support</span>
+          </a>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[var(--text-secondary)] hover:bg-red-500/10 hover:text-red-400 transition-colors"

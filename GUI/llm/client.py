@@ -537,29 +537,62 @@ _MODE_TEMPERATURES: dict[str, float] = {
 }
 
 
-def _auto_select_model(mode, messages, provider, user_model) -> str:
+def _auto_select_model(mode, messages, provider, user_model, plan: str = "") -> str:
+    """
+    Auto-select the best model for the given mode and message complexity.
+
+    If a plan is provided (non-BYOK proxy mode), the selected model is capped
+    to the plan's allowed model list so the proxy never receives a model that
+    would trigger a 403.  BYOK users (plan="") bypass this check because they
+    call providers directly with their own keys.
+    """
     if user_model != _DEFAULT_MODELS.get(provider, ""):
-        return user_model
-    last_msg = ""
-    if messages:
-        content = messages[-1].get("content", "")
-        if isinstance(content, str):
-            last_msg = content.lower()
-        elif isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "text":
-                    last_msg += block.get("text", "").lower()
-    if provider == "anthropic":
-        models = _ANTHROPIC_MODELS
-    elif provider == "cerebras":
-        models = _CEREBRAS_MODELS
+        candidate = user_model
     else:
-        models = _OPENAI_MODELS
-    if any(k in last_msg for k in _COMPLEX_KEYWORDS):
-        return models["best"]
-    if any(k in last_msg for k in _SIMPLE_KEYWORDS) or mode == "interview":
-        return models["fast"]
-    return models["balanced"]
+        last_msg = ""
+        if messages:
+            content = messages[-1].get("content", "")
+            if isinstance(content, str):
+                last_msg = content.lower()
+            elif isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        last_msg += block.get("text", "").lower()
+        if provider == "anthropic":
+            models = _ANTHROPIC_MODELS
+        elif provider == "cerebras":
+            models = _CEREBRAS_MODELS
+        else:
+            models = _OPENAI_MODELS
+        if any(k in last_msg for k in _COMPLEX_KEYWORDS):
+            candidate = models["best"]
+        elif any(k in last_msg for k in _SIMPLE_KEYWORDS) or mode == "interview":
+            candidate = models["fast"]
+        else:
+            candidate = models["balanced"]
+
+    # ── Plan-based model cap (proxy / SaaS mode only) ──────────────────────────
+    # When routing through the GlassNote proxy the backend enforces plan-based
+    # model access.  Cap the auto-selected model to the plan's allowed list so
+    # we never send a model that would return a 403.
+    # BYOK users (plan == "") call providers directly — no cap needed.
+    if plan and _PRICING_CONFIG_AVAILABLE:
+        try:
+            if not _pricing_config.is_model_allowed(plan, candidate):
+                # Fall back to the plan's allowed "fast" model for this provider
+                allowed = _pricing_config.get_allowed_models(plan)
+                provider_allowed = [m[2] for m in allowed if m[1] == provider]
+                if provider_allowed:
+                    fallback = provider_allowed[0]  # first = cheapest/fastest
+                    print(
+                        f"[llm] plan-cap: {candidate} not allowed on '{plan}' plan "
+                        f"→ falling back to {fallback}"
+                    )
+                    candidate = fallback
+        except Exception as e:
+            print(f"[llm] plan-cap check failed (non-fatal): {e}")
+
+    return candidate
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -763,7 +796,14 @@ class LLMClient:
     ):
         cfg      = self._load_cfg()
         provider = cfg.get("selected_provider", "anthropic")
-        model    = self._resolve_model(cfg, provider, messages, mode)
+
+        # Determine plan for model-cap logic (only applies in proxy/SaaS mode)
+        # BYOK users (byok_enabled=True) bypass the proxy and call providers
+        # directly, so no plan cap is needed for them.
+        byok_enabled = cfg.get("glassnote_byok_enabled", False)
+        _plan_for_cap = "" if byok_enabled else cfg.get("glassnote_user_plan", "free") or "free"
+
+        model    = self._resolve_model(cfg, provider, messages, mode, plan=_plan_for_cap)
 
         # ── HYBRID MODEL APPROACH ──────────────────────────────────────────────
         # When a text-only model is selected but images are present (analyze/solve),
@@ -901,14 +941,14 @@ class LLMClient:
 
     # ── Model / token resolution ───────────────────────────────────────────────
 
-    def _resolve_model(self, cfg, provider, messages, mode) -> str:
+    def _resolve_model(self, cfg, provider, messages, mode, plan: str = "") -> str:
         if provider == "anthropic":
             user_model = cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
         elif provider == "cerebras":
             user_model = cfg.get("cerebras_model", "llama3.1-8b")
         else:
             user_model = cfg.get("openai_model", "gpt-4o")
-        return _auto_select_model(mode, messages, provider, user_model)
+        return _auto_select_model(mode, messages, provider, user_model, plan=plan)
 
     def _fast_stream_cached(self, cached: str) -> Iterator[str]:
         CHUNK = 8   # larger chunks for cached replay — no network delay
@@ -1099,6 +1139,26 @@ class LLMClient:
         with http_client.stream(
             "POST", endpoint, headers=headers, json=body,
         ) as r:
+            if r.status_code == 403:
+                # Read the full response body to extract the structured error detail
+                try:
+                    error_body = r.read().decode("utf-8", errors="replace")
+                    error_data = json.loads(error_body)
+                    detail = error_data.get("detail", {})
+                    if isinstance(detail, dict):
+                        msg = detail.get("message", str(detail))
+                        allowed = detail.get("allowed_models", [])
+                        upgrade = detail.get("upgrade_url", "https://glassnoteai.com/dashboard/billing")
+                        if allowed:
+                            msg += f"\n\nAllowed models on your plan: {', '.join(allowed)}"
+                        msg += f"\n\nUpgrade at: {upgrade}"
+                    elif isinstance(detail, str):
+                        msg = detail
+                    else:
+                        msg = f"Access denied (403): {error_body[:200]}"
+                except Exception:
+                    msg = f"Access denied (403). Your plan may not include this model. Upgrade at https://glassnoteai.com/dashboard/billing"
+                raise RuntimeError(msg)
             r.raise_for_status()
             buffer = ""
             for chunk in r.iter_bytes():

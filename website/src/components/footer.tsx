@@ -10,9 +10,9 @@ const footerLinks = {
   ],
   resources: [
     { label: "GitHub", href: "https://github.com/sshivasai/GlassNoteAI", external: true },
-    { label: "Documentation", href: "#" },
-    { label: "Support", href: "mailto:support@glassnote.ai" },
-    { label: "Status", href: "#" },
+    { label: "Documentation", href: "https://github.com/sshivasai/GlassNoteAI", external: true },
+    { label: "API Reference", href: "https://api.glassnoteai.com/docs", external: true },
+    { label: "Support", href: "mailto:support@glassnoteai.com", external: true },
   ],
   legal: [
     { label: "Privacy Policy", href: "#" },

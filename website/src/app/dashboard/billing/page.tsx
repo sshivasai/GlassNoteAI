@@ -1,72 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi, fetchPublicPricing, Plan } from "@/lib/api";
+import { fetchPublicPricing, Plan } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Check, ExternalLink, Loader2 } from "lucide-react";
+import { CreditCard, Check, Clock } from "lucide-react";
 
 export default function BillingPage() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [toast, setToast] = useState("");
 
   useEffect(() => {
     fetchPublicPricing().then(setPlans);
   }, []);
 
-  const handleCheckout = async (planId: string) => {
-    setLoading(planId);
-    try {
-      const data = await fetchApi("/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({
-          plan: planId,
-          success_url: window.location.origin + "/dashboard/billing?success=true",
-          cancel_url: window.location.origin + "/dashboard/billing?cancelled=true",
-        }),
-      });
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      }
-    } catch (err: unknown) {
-      setToast((err as Error).message || "Failed to start checkout.");
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const handleManageBilling = async () => {
-    setLoading("portal");
-    try {
-      const data = await fetchApi("/billing/portal", { method: "POST" });
-      if (data.portal_url) {
-        window.open(data.portal_url, "_blank");
-      }
-    } catch (err: unknown) {
-      setToast((err as Error).message || "Failed to open billing portal.");
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  // Check URL params for success/cancel feedback
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "true") {
-      setToast("✓ Payment successful! Your plan has been upgraded.");
-      refreshUser();
-      window.history.replaceState({}, "", "/dashboard/billing");
-    } else if (params.get("cancelled") === "true") {
-      setToast("Checkout was cancelled.");
-      window.history.replaceState({}, "", "/dashboard/billing");
-    }
-  }, [refreshUser]);
-
   if (!user) return null;
 
-  // FIX: Filter out ALL free plans (free + byok), show only paid plans
+  // Filter out ALL free plans (free + byok), show only paid plans
   const paidPlans = plans.filter((p) => p.price_type !== "free").sort((a, b) => a.sort_order - b.sort_order);
 
   return (
@@ -79,11 +29,17 @@ export default function BillingPage() {
         <p className="text-[var(--text-secondary)]">Manage your subscription and payment method.</p>
       </div>
 
-      {toast && (
-        <div className={`p-3 rounded-lg border text-sm text-center ${toast.startsWith("✓") ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"}`}>
-          {toast}
-        </div>
-      )}
+      {/* Coming Soon Notice */}
+      <div className="p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/5 flex items-center gap-3">
+        <Clock className="w-5 h-5 text-yellow-400 shrink-0" />
+        <p className="text-sm text-yellow-300">
+          <span className="font-semibold">Paid plans are coming soon.</span> Online checkout is not yet available. Contact{" "}
+          <a href="mailto:support@glassnoteai.com" className="underline hover:text-yellow-200 transition-colors">
+            support@glassnoteai.com
+          </a>{" "}
+          for early access or billing questions.
+        </p>
+      </div>
 
       {/* Current Plan */}
       <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)]">
@@ -93,19 +49,22 @@ export default function BillingPage() {
             <p className="text-2xl font-bold text-white capitalize">{user.plan}</p>
           </div>
           {user.plan !== "free" && (
-            <Button
-              variant="outline"
-              onClick={handleManageBilling}
-              disabled={loading === "portal"}
-              className="border-[var(--border)] text-[var(--text-secondary)] hover:text-white"
+            <a
+              href="mailto:support@glassnoteai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
             >
-              {loading === "portal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ExternalLink className="w-4 h-4 mr-2" />Manage Billing</>}
-            </Button>
+              Contact Support
+            </a>
           )}
         </div>
         {user.plan !== "free" && (
           <p className="text-sm text-[var(--text-muted)] mt-2">
-            Use the billing portal to update your payment method, view invoices, or cancel your subscription.
+            To update your payment method, view invoices, or cancel your subscription, contact{" "}
+            <a href="mailto:support@glassnoteai.com" className="text-[var(--cyan)] hover:underline">
+              support@glassnoteai.com
+            </a>.
           </p>
         )}
       </div>
@@ -118,11 +77,19 @@ export default function BillingPage() {
             <div
               key={plan.id}
               className={`p-5 rounded-xl border transition-colors ${isCurrent
-                  ? "border-[var(--cyan)] bg-[rgba(0,217,255,0.05)]"
-                  : "border-[var(--border)] bg-[var(--bg-card)] hover:border-[var(--border-glow)]"
+                ? "border-[var(--cyan)] bg-[rgba(0,217,255,0.05)]"
+                : "border-[var(--border)] bg-[var(--bg-card)]"
                 }`}
             >
-              <h3 className="text-lg font-bold text-white mb-1">{plan.display_name}</h3>
+              <div className="flex items-start justify-between mb-1">
+                <h3 className="text-lg font-bold text-white">{plan.display_name}</h3>
+                {!isCurrent && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500/15 text-yellow-400 border border-yellow-500/30">
+                    <Clock className="w-3 h-3" />
+                    Coming Soon
+                  </span>
+                )}
+              </div>
               <p className="text-2xl font-black text-white mb-1">{plan.price_display}</p>
               <p className="text-xs text-[var(--text-muted)] mb-4">{plan.tagline}</p>
 
@@ -147,11 +114,11 @@ export default function BillingPage() {
                 </Button>
               ) : (
                 <Button
-                  onClick={() => handleCheckout(plan.id)}
-                  disabled={!!loading}
-                  className="w-full bg-[var(--cyan)] text-black hover:bg-[#00a8ff] font-semibold"
+                  disabled
+                  className="w-full bg-[var(--bg-primary)] text-[var(--text-muted)] border border-[var(--border)] cursor-not-allowed opacity-60 font-semibold"
                 >
-                  {loading === plan.id ? <Loader2 className="w-4 h-4 animate-spin" /> : `Upgrade to ${plan.display_name}`}
+                  <Clock className="w-4 h-4 mr-2" />
+                  Coming Soon
                 </Button>
               )}
             </div>

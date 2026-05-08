@@ -220,12 +220,24 @@ def _check_model_access(plan: str, model: str) -> None:
         HTTPException: 403 if model is not available on the user's plan.
     """
     if not _is_model_allowed_cached(plan, model):
+        from app.pricing_config import get_plan, get_allowed_models
+        plan_data      = get_plan(plan)
+        plan_name      = plan_data.get("display_name", plan.title())
+        allowed_models = get_allowed_models(plan)
+        allowed_ids    = [m[2] for m in allowed_models]
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                f"Model '{model}' is not available on the '{plan}' plan. "
-                "Upgrade your plan to access this model."
-            ),
+            detail={
+                "error":         "model_not_allowed",
+                "message":       (
+                    f"Model '{model}' is not available on the {plan_name} plan. "
+                    f"Please select one of the allowed models or upgrade your plan."
+                ),
+                "requested_model":  model,
+                "plan":             plan,
+                "allowed_models":   allowed_ids,
+                "upgrade_url":      "https://glassnoteai.com/dashboard/billing",
+            },
         )
 
 
