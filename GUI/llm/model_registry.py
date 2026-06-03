@@ -49,6 +49,9 @@ VISION_MODELS = {
     "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-5.4-nano",
+
+    # OpenRouter handles vision routing
+    "openrouter/free",
 }
 
 
@@ -59,6 +62,7 @@ DEFAULT_VISION_FALLBACK = {
     "anthropic": "claude-haiku-4-5-20251001",    # Fast, cheap, vision-capable
     "openai":    "gpt-4o-mini",         # Fast, cheap, vision-capable
     "cerebras":  "gpt-4o-mini",         # Fallback to OpenAI (Cerebras has no vision)
+    "openrouter": "openrouter/free",    # OpenRouter handles vision routing natively
 }
 
 

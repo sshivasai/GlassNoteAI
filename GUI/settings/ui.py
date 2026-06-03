@@ -297,6 +297,21 @@ class SettingsWindow(QWidget):
         )
         layout.addWidget(self._byok_cerebras_note)
 
+        self._byok_sep4 = _sep()
+        layout.addWidget(self._byok_sep4)
+
+        self._byok_openrouter_label = _section("OpenRouter (Free Models)")
+        layout.addWidget(self._byok_openrouter_label)
+        self.openrouter_key = QLineEdit()
+        self.openrouter_key.setPlaceholderText("sk-or-v1-...")
+        self.openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.openrouter_key)
+        self._byok_openrouter_note = _note(
+            "OpenRouter provides access to various free models. "
+            "Get a free key at openrouter.ai."
+        )
+        layout.addWidget(self._byok_openrouter_note)
+
         self._byok_widgets = [
             self._byok_section_label, self._byok_desc,
             self._byok_anthro_label, self.anthropic_key, self._byok_sep1,
@@ -305,6 +320,8 @@ class SettingsWindow(QWidget):
             self._byok_dg_label, self.deepgram_key, self._byok_dg_note,
             self._byok_sep3,
             self._byok_cerebras_label, self.cerebras_key, self._byok_cerebras_note,
+            self._byok_sep4,
+            self._byok_openrouter_label, self.openrouter_key, self._byok_openrouter_note,
         ]
 
         layout.addStretch()
@@ -362,7 +379,10 @@ class SettingsWindow(QWidget):
 
         layout.addWidget(_sep())
 
-        layout.addWidget(_section("Max Output Tokens"))
+        layout.addWidget(_section("OpenRouter Model"))
+        self.openrouter_model = QComboBox()
+        # Populated dynamically in _populate_plan_models()
+        layout.addWidget(self.openrouter_model)
         self.max_tokens = QSpinBox()
         self.max_tokens.setRange(256, 8192)
         self.max_tokens.setSingleStep(256)
@@ -411,6 +431,7 @@ class SettingsWindow(QWidget):
         anthro_models = [m[2] for m in allowed if m[1] == "anthropic"]
         openai_models = [m[2] for m in allowed if m[1] == "openai"]
         cerebras_models = [m[2] for m in allowed if m[1] == "cerebras"]
+        openrouter_models = [m[2] for m in allowed if m[1] == "openrouter"]
 
         # Anthropic dropdown
         self.anthropic_model.clear()
@@ -428,6 +449,15 @@ class SettingsWindow(QWidget):
         else:
             self.cerebras_model.addItem("Not available" if not byok_enabled else "No Cerebras models")
             self.cerebras_model.setEnabled(False)
+
+        # OpenRouter dropdown
+        self.openrouter_model.clear()
+        if openrouter_models:
+            self.openrouter_model.addItems(openrouter_models)
+            self.openrouter_model.setEnabled(True)
+        else:
+            self.openrouter_model.addItem("Not available" if not byok_enabled else "No OpenRouter models")
+            self.openrouter_model.setEnabled(False)
 
         # Plan info label with smooth transition
         from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
@@ -1214,6 +1244,7 @@ class SettingsWindow(QWidget):
         self.openai_key.setText(get_secure("openai_api_key", ""))
         self.deepgram_key.setText(get_secure("deepgram_api_key", ""))
         self.cerebras_key.setText(get_secure("cerebras_api_key", ""))
+        self.openrouter_key.setText(get_secure("openrouter_api_key", ""))
 
         # Populate plan-filtered model lists BEFORE selecting saved values
         self._populate_plan_models()
@@ -1227,8 +1258,11 @@ class SettingsWindow(QWidget):
         idx = self.openai_model.findText(c.get("openai_model", "gpt-4o-mini"))
         self.openai_model.setCurrentIndex(max(0, idx))
 
-        idx = self.cerebras_model.findText(c.get("cerebras_model", "llama3.1-8b"))
+        idx = self.cerebras_model.findText(c.get("cerebras_model", "gpt-oss-120b"))
         self.cerebras_model.setCurrentIndex(max(0, idx))
+
+        idx = self.openrouter_model.findText(c.get("openrouter_model", "openrouter/free"))
+        self.openrouter_model.setCurrentIndex(max(0, idx))
 
         self.max_tokens.setValue(c.get("max_tokens", 2048))
         self.auto_model_routing.setChecked(c.get("auto_model_routing", True))
@@ -1322,11 +1356,13 @@ class SettingsWindow(QWidget):
             "openai_api_key":        self.openai_key.text().strip(),
             "deepgram_api_key":      self.deepgram_key.text().strip(),
             "cerebras_api_key":      self.cerebras_key.text().strip(),
+            "openrouter_api_key":    self.openrouter_key.text().strip(),
 
             # LLM models
             "anthropic_model":       self.anthropic_model.currentText(),
             "openai_model":          self.openai_model.currentText(),
             "cerebras_model":        self.cerebras_model.currentText(),
+            "openrouter_model":      self.openrouter_model.currentText(),
             "max_tokens":            self.max_tokens.value(),
             "auto_model_routing":    self.auto_model_routing.isChecked(),
 

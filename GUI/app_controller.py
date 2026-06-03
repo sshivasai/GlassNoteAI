@@ -1407,7 +1407,9 @@ class AppController(QObject):
         if provider == "anthropic":
             self._dispatch_model = cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
         elif provider == "cerebras":
-            self._dispatch_model = cfg.get("cerebras_model", "llama3.1-8b")
+            self._dispatch_model = cfg.get("cerebras_model", "gpt-oss-120b")
+        elif provider == "openrouter":
+            self._dispatch_model = cfg.get("openrouter_model", "openrouter/free")
         else:
             self._dispatch_model = cfg.get("openai_model", "gpt-4o")
 

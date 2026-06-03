@@ -1074,6 +1074,18 @@ class SessionSetupWindow(QWidget):
                         "Add one in Settings or disable BYOK."
                     )
                     return
+                if provider == "cerebras" and not cfg.get("cerebras_api_key", "").strip():
+                    self._sig_verify_error.emit(
+                        "Cerebras models require a Cerebras API key when BYOK is enabled. "
+                        "Add one in Settings or disable BYOK."
+                    )
+                    return
+                if provider == "openrouter" and not cfg.get("openrouter_api_key", "").strip():
+                    self._sig_verify_error.emit(
+                        "OpenRouter models require an OpenRouter API key when BYOK is enabled. "
+                        "Add one in Settings or disable BYOK."
+                    )
+                    return
                 # BYOK enabled — no backend session registration needed
                 print(f"[session] BYOK mode — skipping backend registration")
                 self._sig_session_ok.emit("")
@@ -1146,6 +1158,10 @@ class SessionSetupWindow(QWidget):
         config.set("selected_provider", self._pending_provider)
         if self._pending_provider == "anthropic":
             config.set("anthropic_model", self._pending_model)
+        elif self._pending_provider == "cerebras":
+            config.set("cerebras_model", self._pending_model)
+        elif self._pending_provider == "openrouter":
+            config.set("openrouter_model", self._pending_model)
         else:
             config.set("openai_model", self._pending_model)
 

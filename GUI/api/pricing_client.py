@@ -57,12 +57,13 @@ _FALLBACK_ALL_MODELS = [
     {"display_name": "GPT-5.4  [OpenAI — Best]",                "provider": "openai",    "model_id": "gpt-5.4"},
     {"display_name": "GPT-5.4 Nano  [OpenAI — Ultra Fast]",     "provider": "openai",    "model_id": "gpt-5.4-nano"},
     {"display_name": "GPT-4.1 Nano  [OpenAI — Ultra Fast]",     "provider": "openai",    "model_id": "gpt-4.1-nano"},
-    {"display_name": "Llama 3.1 8B  [Cerebras — Ultra Fast]",    "provider": "cerebras",  "model_id": "llama3.1-8b"},
-    {"display_name": "GPT-OSS 120B  [Cerebras — Fast]",          "provider": "cerebras",  "model_id": "gpt-oss-120b"},
+    {"display_name": "GPT-OSS 120B  [Cerebras — Ultra Fast]",    "provider": "cerebras",  "model_id": "gpt-oss-120b"},
+    {"display_name": "Z.ai GLM 4.7  [Cerebras — Fast]",          "provider": "cerebras",  "model_id": "zai-glm-4.7"},
+    {"display_name": "OpenRouter Free  [OpenRouter — Smart]",    "provider": "openrouter","model_id": "openrouter/free"},
 ]
 
-_BASIC_IDS    = {"claude-haiku-4-5-20251001","gpt-4o-mini","gpt-4.1-mini","gpt-4.1-nano","gpt-5.4-nano","llama-3.2-1b-instant","llama3.1-8b"}
-_STANDARD_IDS = _BASIC_IDS | {"claude-sonnet-4-5-20250929","gpt-4o","gpt-4.1","gpt-4-turbo","gpt-5.4-mini","gpt-oss-120b"}
+_BASIC_IDS    = {"claude-haiku-4-5-20251001","gpt-4o-mini","gpt-4.1-mini","gpt-4.1-nano","gpt-5.4-nano","llama-3.2-1b-instant","gpt-oss-120b","zai-glm-4.7","openrouter/free"}
+_STANDARD_IDS = _BASIC_IDS | {"claude-sonnet-4-5-20250929","gpt-4o","gpt-4.1","gpt-4-turbo","gpt-5.4-mini"}
 _ALL_IDS      = _STANDARD_IDS | {"claude-opus-4-5-20251101","o1","o1-mini","gpt-5.4"}
 
 _FALLBACK_PLANS = {
