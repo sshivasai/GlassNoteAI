@@ -450,16 +450,26 @@ class SessionSetupWindow(QWidget):
         """
         Populate model dropdown filtered by the user's plan.
 
+        BYOK enabled = ALL models shown regardless of plan (user uses own keys).
+        BYOK disabled = Plan-based model restrictions apply.
+
         Args:
             sessions_used: How many sessions used this period (-1 = unknown).
             sessions_remaining: How many sessions left (-1 = unlimited/unknown).
         """
         self.model_combo.clear()
 
-        cfg     = config.load_config()
-        plan_id = cfg.get("glassnote_user_plan", "").strip() or "free"
+        cfg          = config.load_config()
+        plan_id      = cfg.get("glassnote_user_plan", "").strip() or "free"
+        byok_enabled = cfg.get("glassnote_byok_enabled", False)
 
-        allowed   = pricing.get_allowed_models(plan_id)
+        if byok_enabled:
+            # BYOK enabled → show ALL models from all tiers
+            allowed = pricing.get_all_models()
+        else:
+            # BYOK disabled → show only plan-allowed models
+            allowed = pricing.get_allowed_models(plan_id)
+
         plan_data = pricing.get_plan(plan_id)
 
         self._model_map = allowed
@@ -473,7 +483,10 @@ class SessionSetupWindow(QWidget):
         plan_name    = plan_data["display_name"]
         t            = self._tok()
 
-        if is_unlimited:
+        if byok_enabled:
+            remaining_str = "BYOK — all models available"
+            info_color    = t["success"]
+        elif is_unlimited:
             remaining_str = "Unlimited sessions"
             info_color    = t["success"]
         elif sessions_remaining == 0:
@@ -493,7 +506,12 @@ class SessionSetupWindow(QWidget):
             remaining_str = f"{sess_limit} sessions"
             info_color    = t["text2"]
 
-        if plan_id == "free":
+        if byok_enabled:
+            banner = (
+                f"🔑 BYOK Enabled  |  {remaining_str}\n"
+                f"   {len(allowed)} models available (all tiers)"
+            )
+        elif plan_id == "free":
             banner = (
                 f"{plan_name} Plan  |  {remaining_str}  |  {dur_limit} each\n"
                 f"{len(allowed)} model{'s' if len(allowed) != 1 else ''} available  |  Upgrade for more"
@@ -1020,8 +1038,12 @@ class SessionSetupWindow(QWidget):
             # Update banner with live quota (UX-2)
             self._sig_plan_update.emit(server_plan, sessions_used, sessions_remaining)
 
-            # Validate model access
-            if not pricing.is_model_allowed(server_plan, model_id):
+            # Check if BYOK is enabled (account setting, not plan-based)
+            byok_enabled = cfg.get("glassnote_byok_enabled", False)
+
+            # Validate model access — BYOK users bypass plan restrictions
+            # (they use their own API keys and pay providers directly)
+            if not byok_enabled and not pricing.is_model_allowed(server_plan, model_id):
                 plan_name = pricing.get_plan(server_plan)["display_name"]
                 self._sig_verify_error.emit(
                     f"{model_id} is not available on the {plan_name} plan. "
@@ -1029,8 +1051,6 @@ class SessionSetupWindow(QWidget):
                 )
                 return
 
-            # Check if BYOK is enabled (account setting, not plan-based)
-            byok_enabled = cfg.get("glassnote_byok_enabled", False)
             has_api_url  = bool(cfg.get("glassnote_api_url", "").strip())
             is_saas      = has_api_url and not byok_enabled
 

@@ -376,56 +376,73 @@ class AppController(QObject):
 
     def _show_notifications(self, notifications: list):
         """
-        Display notification banners for each new notification.
+        Display each new notification as a modal dialog (one at a time).
 
-        BUG-10 fix: previously used overlay.set_error() which overwrites any
-        active answer being streamed. Now uses overlay.show_notification_banner()
-        which renders a non-destructive banner above the answer content.
-        Falls back to pill tooltip if overlay has an active answer.
+        The dialog has two buttons:
+          - "Got it"          → permanently dismisses the notification by saving
+                                its ID to config["dismissed_notification_ids"].
+          - "Remind Me Later" → closes the dialog without persisting the ID, so
+                                the notification reappears on the next app launch.
 
-        When dismissed, its ID is written to config so it is not shown again.
+        Notifications are shown sequentially; the next dialog only opens after
+        the user responds to the current one.
         """
+        from utils.notification_dialog import NotificationDialog
+
         cfg       = config.load_config()
         dismissed = set(cfg.get("dismissed_notification_ids", []))
 
-        for notif in notifications:
-            nid     = notif.get("id", "")
-            title   = notif.get("title", "GlassNote Update")
-            message = notif.get("message", "")
-            ntype   = notif.get("type", "info")
+        # Filter out any that were already dismissed (defensive double-check)
+        pending = [n for n in notifications if n.get("id", "") not in dismissed]
 
-            if nid in dismissed:
-                continue
+        if not pending:
+            return
 
-            type_icon = {"info": "ℹ", "warning": "⚠", "critical": "🔴"}.get(ntype, "ℹ")
-            banner_text = f"{type_icon} **{title}** — {message}"
+        # Show dialogs one at a time using a recursive helper so each dialog
+        # is fully closed before the next one opens.
+        def _show_next(remaining: list):
+            if not remaining:
+                return
 
-            # BUG-10 fix: use show_notification_banner() instead of set_error()
-            # so active answers are not overwritten.
-            if hasattr(self.overlay, "show_notification_banner"):
-                self.overlay.show_notification_banner(banner_text, ntype)
-                self.overlay.show()
-                self.pill.set_overlay_visible(True)
-            else:
-                # Fallback: only show if overlay has no active answer
-                if not self.overlay.isVisible():
-                    self.overlay.set_error(
-                        f"**{type_icon} {title}**\n\n{message}\n\n"
-                        f"_(Dismiss to not show again)_"
-                    )
-                    self.overlay.show()
-                    self.pill.set_overlay_visible(True)
-                else:
-                    # Don't overwrite active answer — log only
-                    print(f"[app] Notification suppressed (overlay active): {title}")
+            notif = remaining[0]
+            rest  = remaining[1:]
+            nid   = notif.get("id", "")
+            title = notif.get("title", "GlassNote Notification")
 
-            # Mark as dismissed
-            dismissed.add(nid)
-            print(f"[app] Notification shown: {title}")
+            dlg = NotificationDialog(notif, parent=None)
 
-        # Persist updated dismissed list
-        cfg["dismissed_notification_ids"] = list(dismissed)
-        config.save_config(cfg)
+            def _on_dismissed(notification_id: str):
+                """Permanently dismiss — save ID to config."""
+                cfg2 = config.load_config()
+                ids  = set(cfg2.get("dismissed_notification_ids", []))
+                ids.add(notification_id)
+                cfg2["dismissed_notification_ids"] = list(ids)
+                config.save_config(cfg2)
+                print(f"[app] Notification dismissed (permanent): {title}")
+                # Show next notification after a brief delay
+                QTimer.singleShot(150, lambda: _show_next(rest))
+
+            def _on_remind_later():
+                """Remind later — do NOT persist the ID."""
+                print(f"[app] Notification snoozed (remind later): {title}")
+                # Show next notification after a brief delay
+                QTimer.singleShot(150, lambda: _show_next(rest))
+
+            dlg.dismissed.connect(_on_dismissed)
+            dlg.remind_later.connect(_on_remind_later)
+
+            # Centre the dialog on the primary screen
+            screen_geo = self.app.primaryScreen().geometry()
+            dlg.adjustSize()
+            dlg.move(
+                screen_geo.x() + (screen_geo.width()  - dlg.width())  // 2,
+                screen_geo.y() + (screen_geo.height() - dlg.height()) // 2,
+            )
+
+            print(f"[app] Showing notification dialog: {title}")
+            dlg.exec()   # blocks until user responds (modal)
+
+        _show_next(pending)
 
     # ── Launch ─────────────────────────────────────────────────────────────────
 

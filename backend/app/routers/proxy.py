@@ -266,7 +266,10 @@ async def proxy_anthropic(
         model = "claude-haiku-4-5-20251001"
 
     # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
-    _check_model_access(user.get("plan", "free"), model)
+    # BYOK users bypass plan restrictions — they use their own API keys and
+    # pay providers directly, so the platform's plan model caps don't apply.
+    if not user.get("byok_enabled", False):
+        _check_model_access(user.get("plan", "free"), model)
 
     pool = await _get_anthropic_pool()
 
@@ -360,7 +363,10 @@ async def proxy_openai(
     except (json.JSONDecodeError, AttributeError):
         model = "gpt-4o-mini"
 
-    _check_model_access(user.get("plan", "free"), model)
+    # BYOK users bypass plan restrictions — they use their own API keys and
+    # pay providers directly, so the platform's plan model caps don't apply.
+    if not user.get("byok_enabled", False):
+        _check_model_access(user.get("plan", "free"), model)
 
     # ── API compatibility fix: nano models require max_completion_tokens ──────
     # OpenAI's latest API requires 'max_completion_tokens' for nano models,
@@ -585,8 +591,9 @@ async def proxy_cerebras(
         model = "llama3.1-8b"
 
     # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
-    # In debug mode, skip model access check to allow local testing
-    if not settings.debug:
+    # Skip check in debug mode (local testing) OR when BYOK is enabled
+    # (BYOK users use their own API keys — platform plan caps don't apply).
+    if not settings.debug and not user.get("byok_enabled", False):
         _check_model_access(user.get("plan", "free"), model)
 
     pool = await _get_cerebras_pool()

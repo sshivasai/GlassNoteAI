@@ -459,8 +459,12 @@ class SettingsWindow(QWidget):
             self._label_animations = []
         self._label_animations.append(fade_out)
 
-        # Disable features not available on this plan
-        if not pricing.is_feature_enabled(self._user_plan, "auto_model_routing"):
+        # Disable features not available on this plan.
+        # BYOK users bypass plan restrictions — skip this check when BYOK is enabled.
+        # (Note: _apply_plan_restrictions() already enables auto_model_routing for BYOK
+        # users, but it calls _populate_plan_models() at the end, so we must guard here
+        # to prevent the plan check from overriding the BYOK unlock.)
+        if not byok_enabled and not pricing.is_feature_enabled(self._user_plan, "auto_model_routing"):
             self.auto_model_routing.setChecked(False)
             self.auto_model_routing.setEnabled(False)
             self.auto_model_routing.setToolTip(
