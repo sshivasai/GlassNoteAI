@@ -162,8 +162,15 @@ _VALID_MODELS = {
         "gpt-4", "gpt-3.5-turbo",
     },
     "cerebras": {
-        "llama3.1-8b", "llama3.1-70b",
+        # Only currently supported models (llama3.1-8b deprecated 2026-05-27)
         "gpt-oss-120b",
+    },
+    "openrouter": {
+        # Curated free models available to all plans
+        "openrouter/free",
+        "openai/gpt-oss-120b:free",
+        "google/gemma-4-31b:free",
+        # BYOK users can use any model — unknown IDs pass via the fallback below
     },
 }
 

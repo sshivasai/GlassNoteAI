@@ -18,13 +18,18 @@ This ensures:
 
 TEXT_ONLY_MODELS = {
     # Cerebras models (ultra-fast inference, no vision)
-    "llama3.1-8b",
     "gpt-oss-120b",
 
     # OpenAI text-only models
     "o1",
     "o1-mini",
     "o3-mini",
+
+    # OpenRouter models — treat as text-only by default
+    # (routed models may or may not support vision; safe to fallback)
+    "openrouter/free",
+    "openai/gpt-oss-120b:free",
+    "google/gemma-4-31b:free",
 
     # Future text-only models can be added here
 }
@@ -49,9 +54,6 @@ VISION_MODELS = {
     "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-5.4-nano",
-
-    # OpenRouter handles vision routing
-    "openrouter/free",
 }
 
 
@@ -59,10 +61,10 @@ VISION_MODELS = {
 # When a text-only model is selected but images are needed, use this mapping.
 
 DEFAULT_VISION_FALLBACK = {
-    "anthropic": "claude-haiku-4-5-20251001",    # Fast, cheap, vision-capable
-    "openai":    "gpt-4o-mini",         # Fast, cheap, vision-capable
-    "cerebras":  "gpt-4o-mini",         # Fallback to OpenAI (Cerebras has no vision)
-    "openrouter": "openrouter/free",    # OpenRouter handles vision routing natively
+    "anthropic":   "claude-haiku-4-5-20251001",    # Fast, cheap, vision-capable
+    "openai":      "gpt-4o-mini",         # Fast, cheap, vision-capable
+    "cerebras":    "gpt-4o-mini",         # Fallback to OpenAI (Cerebras has no vision)
+    "openrouter":  "gpt-4o-mini",         # Fallback to OpenAI (OpenRouter models may lack vision)
 }
 
 
@@ -71,7 +73,7 @@ def is_text_only(model: str) -> bool:
     Check if a model supports only text (no vision).
 
     Args:
-        model: Model ID (e.g., "llama3.1-8b", "gpt-4o-mini")
+        model: Model ID (e.g., "gpt-oss-120b", "gpt-4o-mini")
 
     Returns:
         True if the model is text-only, False if it supports vision.
@@ -107,7 +109,7 @@ def get_vision_fallback(provider: str, original_model: str) -> tuple[str, str]:
         Tuple of (fallback_provider, fallback_model)
 
     Example:
-        >>> get_vision_fallback("cerebras", "llama3.1-8b")
+        >>> get_vision_fallback("cerebras", "gpt-oss-120b")
         ("openai", "gpt-4o-mini")
     """
     # If Cerebras is selected, always fallback to OpenAI

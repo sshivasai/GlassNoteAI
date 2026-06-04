@@ -292,7 +292,7 @@ class SettingsWindow(QWidget):
         self.cerebras_key.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.cerebras_key)
         self._byok_cerebras_note = _note(
-            "Cerebras provides ultra-fast inference with Llama models. "
+            "Cerebras provides ultra-fast inference with GPT-OSS models. "
             "Get an API key at cerebras.ai for speeds up to 1000 tokens/sec."
         )
         layout.addWidget(self._byok_cerebras_note)
@@ -300,15 +300,16 @@ class SettingsWindow(QWidget):
         self._byok_sep4 = _sep()
         layout.addWidget(self._byok_sep4)
 
-        self._byok_openrouter_label = _section("OpenRouter (Free Models)")
+        self._byok_openrouter_label = _section("OpenRouter (Multi-Provider)")
         layout.addWidget(self._byok_openrouter_label)
         self.openrouter_key = QLineEdit()
         self.openrouter_key.setPlaceholderText("sk-or-v1-...")
         self.openrouter_key.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.openrouter_key)
         self._byok_openrouter_note = _note(
-            "OpenRouter provides access to various free models. "
-            "Get a free key at openrouter.ai."
+            "OpenRouter provides access to 100+ models from many providers. "
+            "Free models are available to all users. BYOK unlocks all models. "
+            "Get a key at openrouter.ai"
         )
         layout.addWidget(self._byok_openrouter_note)
 
@@ -383,6 +384,10 @@ class SettingsWindow(QWidget):
         self.openrouter_model = QComboBox()
         # Populated dynamically in _populate_plan_models()
         layout.addWidget(self.openrouter_model)
+
+        layout.addWidget(_sep())
+
+        layout.addWidget(_section("Max Output Tokens"))
         self.max_tokens = QSpinBox()
         self.max_tokens.setRange(256, 8192)
         self.max_tokens.setSingleStep(256)
@@ -456,8 +461,8 @@ class SettingsWindow(QWidget):
             self.openrouter_model.addItems(openrouter_models)
             self.openrouter_model.setEnabled(True)
         else:
-            self.openrouter_model.addItem("Not available" if not byok_enabled else "No OpenRouter models")
-            self.openrouter_model.setEnabled(False)
+            self.openrouter_model.addItem("openrouter/free")
+            self.openrouter_model.setEnabled(True)
 
         # Plan info label with smooth transition
         from PyQt6.QtCore import QPropertyAnimation, QEasingCurve

@@ -18,8 +18,10 @@ Latency budget per proxied request:
     Total overhead:  ~3-6 ms (<1% of typical 300-800 ms TTFT)
 
 Endpoints:
-    POST /v1/proxy/anthropic  — mirrors Anthropic /v1/messages
-    POST /v1/proxy/openai     — mirrors OpenAI /v1/chat/completions
+    POST /v1/proxy/anthropic   — mirrors Anthropic /v1/messages
+    POST /v1/proxy/openai      — mirrors OpenAI /v1/chat/completions
+    POST /v1/proxy/cerebras    — mirrors Cerebras /v1/chat/completions
+    POST /v1/proxy/openrouter  — mirrors OpenRouter /api/v1/chat/completions
 """
 
 import asyncio
@@ -85,6 +87,7 @@ async def _get_openai_pool() -> httpx.AsyncClient:
 
 
 _cerebras_pool: Optional[httpx.AsyncClient] = None
+_openrouter_pool: Optional[httpx.AsyncClient] = None
 
 
 async def _get_cerebras_pool() -> httpx.AsyncClient:
@@ -101,6 +104,22 @@ async def _get_cerebras_pool() -> httpx.AsyncClient:
             ),
         )
     return _cerebras_pool
+
+
+async def _get_openrouter_pool() -> httpx.AsyncClient:
+    """Get or create the shared OpenRouter HTTP/2 connection pool."""
+    global _openrouter_pool
+    if _openrouter_pool is None or _openrouter_pool.is_closed:
+        _openrouter_pool = httpx.AsyncClient(
+            http2=True,
+            timeout=httpx.Timeout(120.0, connect=10.0),
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=50,
+                keepalive_expiry=300,
+            ),
+        )
+    return _openrouter_pool
 
 
 # TTFT-OPT: eager pool warm-up at startup
@@ -586,9 +605,9 @@ async def proxy_cerebras(
     body_bytes = await request.body()
     try:
         body_json = json.loads(body_bytes)
-        model = body_json.get("model", "llama3.1-8b")
+        model = body_json.get("model", "gpt-oss-120b")
     except (json.JSONDecodeError, AttributeError):
-        model = "llama3.1-8b"
+        model = "gpt-oss-120b"
 
     # ── Plan-gated model access (uses pricing_config — NOT hardcoded) ──────
     # Skip check in debug mode (local testing) OR when BYOK is enabled
@@ -649,6 +668,109 @@ async def proxy_cerebras(
         asyncio.create_task(_log_llm_usage(
             user_id=user["sub"],
             provider="cerebras",
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=int(elapsed_ms),
+        ))
+
+    return StreamingResponse(
+        stream_relay(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── OpenRouter proxy ────────────────────────────────────────────────────────────────
+
+@router.post("/openrouter")
+async def proxy_openrouter(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """
+    Zero-copy streaming proxy for OpenRouter's OpenAI-compatible API.
+
+    OpenRouter provides access to hundreds of models via a unified API.
+    Free models (e.g. openrouter/free) are available to all plan tiers.
+    BYOK users can use any OpenRouter model by specifying a custom model ID.
+
+    Uses the same SSE format as OpenAI Chat Completions — no translation needed.
+    """
+    settings = get_settings()
+    if not settings.openrouter_api_key:
+        raise HTTPException(500, "OpenRouter API key not configured on server")
+
+    body_bytes = await request.body()
+    try:
+        body_json = json.loads(body_bytes)
+        model = body_json.get("model", "openrouter/free")
+    except (json.JSONDecodeError, AttributeError):
+        model = "openrouter/free"
+
+    # ── Plan-gated model access ────────────────────────────────────────────
+    # OpenRouter free models (openrouter/free, *:free) are in _BASIC_MODEL_IDS
+    # and available to all plans. BYOK users bypass all model checks.
+    if not settings.debug and not user.get("byok_enabled", False):
+        _check_model_access(user.get("plan", "free"), model)
+
+    pool = await _get_openrouter_pool()
+
+    proxy_headers = {
+        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Content-Type":  "application/json",
+        "HTTP-Referer":  "https://glassnoteai.com",
+        "X-Title":       "GlassNote",
+    }
+
+    # Inject stream_options for usage tracking
+    try:
+        body_json.setdefault("stream_options", {})["include_usage"] = True
+        body_bytes = json.dumps(body_json).encode("utf-8")
+    except Exception:
+        pass
+
+    t0 = time.time()
+
+    async def stream_relay():
+        output_tokens = 0
+        input_tokens  = 0
+
+        async with pool.stream(
+            "POST",
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=proxy_headers,
+            content=body_bytes,
+        ) as response:
+            if response.status_code != 200:
+                error_body = await response.aread()
+                yield error_body
+                return
+
+            async for chunk in response.aiter_bytes():
+                yield chunk
+
+                if b'"usage"' in chunk and b'"total_tokens"' in chunk:
+                    try:
+                        for line in chunk.decode("utf-8", errors="ignore").split("\n"):
+                            if line.startswith("data:") and '"usage"' in line:
+                                data = line[5:].strip()
+                                if data == "[DONE]":
+                                    continue
+                                evt = json.loads(data)
+                                usage = evt.get("usage", {})
+                                input_tokens  = usage.get("prompt_tokens", 0)
+                                output_tokens = usage.get("completion_tokens", 0)
+                    except Exception:
+                        pass
+
+        elapsed_ms = (time.time() - t0) * 1000
+        asyncio.create_task(_log_llm_usage(
+            user_id=user["sub"],
+            provider="openrouter",
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -733,6 +855,24 @@ async def proxy_health():
         except Exception as e:
             status_info["pools"]["cerebras"] = {"status": "error", "error": str(e)}
 
+    if settings.openrouter_api_key:
+        try:
+            pool = await _get_openrouter_pool()
+            t0 = time.time()
+            r = await pool.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
+                timeout=8.0,
+            )
+            ms = (time.time() - t0) * 1000
+            status_info["pools"]["openrouter"] = {
+                "status": "warm",
+                "latency_ms": round(ms),
+                "http_status": r.status_code,
+            }
+        except Exception as e:
+            status_info["pools"]["openrouter"] = {"status": "error", "error": str(e)}
+
     return status_info
 
 
@@ -775,8 +915,11 @@ async def _log_llm_usage(
         "gpt-5.4-mini":        1.50,
         "gpt-5.4-nano":        0.30,
         "gpt-4.1-nano":        0.10,
-        "llama3.1-8b":         0.10,
         "gpt-oss-120b":        0.60,
+        # OpenRouter free models — $0 cost
+        "openrouter/free":     0.00,
+        "openai/gpt-oss-120b:free": 0.00,
+        "google/gemma-4-31b:free":  0.00,
     }
     _COST_PER_1M_OUT = {
         "claude-opus-4-5-20251101":    75.00,
@@ -793,8 +936,11 @@ async def _log_llm_usage(
         "gpt-5.4-mini":        6.00,
         "gpt-5.4-nano":        1.20,
         "gpt-4.1-nano":        0.40,
-        "llama3.1-8b":         0.10,
         "gpt-oss-120b":        0.60,
+        # OpenRouter free models — $0 cost
+        "openrouter/free":     0.00,
+        "openai/gpt-oss-120b:free": 0.00,
+        "google/gemma-4-31b:free":  0.00,
     }
     cost_in  = (input_tokens  / 1_000_000) * _COST_PER_1M_IN.get(model, 5.0)
     cost_out = (output_tokens / 1_000_000) * _COST_PER_1M_OUT.get(model, 15.0)

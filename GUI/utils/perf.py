@@ -34,8 +34,11 @@ _PRICING = {
     "o1":                 (15.00, 60.00),
     "o1-mini":            (3.00,  12.00),
     "o3-mini":            (1.10,  4.40),
-    "llama3.1-8b":        (0.10,  0.10),
     "gpt-oss-120b":       (0.60,  0.60),
+    # OpenRouter free models — $0 cost to us
+    "openrouter/free":           (0.00, 0.00),
+    "openai/gpt-oss-120b:free":  (0.00, 0.00),
+    "google/gemma-4-31b:free":   (0.00, 0.00),
 }
 
 # STT pricing per minute

@@ -164,18 +164,16 @@ class AudioRecorder:
 
             info      = sd.query_devices(device_idx)
             native_sr = int(info["default_samplerate"])
-            native_ch = min(int(info["max_input_channels"]), 2)  # Cap at 2 to avoid weird multichannel
             self._native_sr = native_sr
-            self._loopback_channels = native_ch
             print(
                 f"[recorder] Loopback : [{device_idx}] {info['name']} "
-                f"@ {native_sr} Hz ({native_ch} ch) → STT resamples internally"
+                f"@ {native_sr} Hz → STT resamples internally"
             )
 
             self._stream = sd.InputStream(
                 device    = device_idx,
                 samplerate= native_sr,
-                channels  = native_ch,
+                channels  = CHANNELS,
                 dtype     = DTYPE,
                 blocksize = CHUNK_FRAMES,
                 callback  = self._audio_callback,
@@ -226,11 +224,10 @@ class AudioRecorder:
         if status:
             print(f"[recorder] ⚠ {status}")
 
-        # ── Stereo downmix if needed ──────────────────────────────────────────────
-        if indata.shape[1] > 1:
-            chunk = indata.mean(axis=1).astype(indata.dtype).flatten()
-        else:
-            chunk = indata.flatten()
+        # ── Single allocation: flatten() always returns a copy ────────────────
+        # Previously: indata.copy().flatten() — two allocations per callback.
+        # Now:        indata.flatten()        — one allocation.              ← CHANGED
+        chunk = indata.flatten()
 
         with self._lock:
             # deque with maxlen automatically drops oldest — no manual pop  ← CHANGED

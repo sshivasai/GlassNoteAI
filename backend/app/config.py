@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     cerebras_api_key: str = ""
+    openrouter_api_key: str = ""
     deepgram_api_key: str = ""
 
     # ── Stripe ─────────────────────────────────────────────────

@@ -8,6 +8,7 @@ Endpoints:
     GET /api/public/pricing         — live pricing plans from pricing_config.py
     GET /api/public/pricing/config  — full PLANS dict for GUI dynamic loading
     GET /api/public/testimonials    — curated user testimonials (managed in DB or static)
+    GET /api/public/version         — current app version info for the desktop updater
 """
 
 from fastapi import APIRouter
@@ -151,3 +152,43 @@ async def get_testimonials(limit: Optional[int] = None):
     if limit and limit > 0:
         result = result[:limit]
     return {"testimonials": result}
+
+
+# ── App version ───────────────────────────────────────────────────────────────
+# Bump APP_VERSION with each desktop release. The GUI updater polls this
+# endpoint on startup and prompts the user to download the new installer
+# when a newer version is detected.
+
+APP_VERSION    = "1.0.0"
+DOWNLOAD_URL   = "https://glassnoteai.com/download"
+RELEASE_NOTES  = ""       # Optional markdown; leave blank if not needed
+IS_CRITICAL    = False     # Set True to force-prompt update in the GUI
+
+
+@router.get("/version")
+async def get_version(platform: str = "windows"):
+    """
+    Return the current desktop app version for the auto-update checker.
+
+    The GUI calls this on startup (2 s delay, background thread) and
+    shows an update prompt when the returned version is newer than the
+    locally installed version.
+
+    Query params:
+        platform: Target platform (\"windows\" | \"mac\" | \"linux\").
+                  Currently unused — same installer for all platforms.
+
+    Returns:
+        dict: {
+            \"version\":       str,   # semver e.g. \"1.2.3\"
+            \"download_url\":  str,   # direct installer URL
+            \"release_notes\": str,   # optional markdown
+            \"is_critical\":   bool,  # True = force-prompt user to update
+        }
+    """
+    return {
+        "version":       APP_VERSION,
+        "download_url":  DOWNLOAD_URL,
+        "release_notes": RELEASE_NOTES,
+        "is_critical":   IS_CRITICAL,
+    }

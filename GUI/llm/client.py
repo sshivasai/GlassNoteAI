@@ -317,12 +317,10 @@ class _ConnectionPool:
         self._anthropic_client:  Optional[httpx.Client] = None
         self._openai_client:     Optional[httpx.Client] = None
         self._cerebras_client:   Optional[httpx.Client] = None
-        self._openrouter_client: Optional[httpx.Client] = None
         self._proxy_client:      Optional[httpx.Client] = None
         self._last_anthropic_key = ""
         self._last_openai_key    = ""
         self._last_cerebras_key  = ""
-        self._last_openrouter_key= ""
         self._last_proxy_url     = ""
 
         self._heartbeat_active   = False
@@ -385,19 +383,6 @@ class _ConnectionPool:
                 self._last_cerebras_key = api_key
             return self._cerebras_client
 
-    def get_openrouter(self, api_key: str) -> httpx.Client:
-        with self._lock:
-            if (self._openrouter_client is None
-                    or api_key != self._last_openrouter_key):
-                if self._openrouter_client:
-                    try:
-                        self._openrouter_client.close()
-                    except Exception:
-                        pass
-                self._openrouter_client   = self._make_client()
-                self._last_openrouter_key = api_key
-            return self._openrouter_client
-
     def start_heartbeat(self, api_key: str, provider: str):
         if self._heartbeat_active:
             return
@@ -447,28 +432,6 @@ class _ConnectionPool:
                                 },
                                 timeout=5.0,
                             )
-                    elif provider == "openrouter":
-                        c = self._openrouter_client
-                        if c:
-                            c.get(
-                                "https://openrouter.ai/api/v1/models",
-                                headers={
-                                    "Authorization":
-                                        f"Bearer {self._heartbeat_api_key}"
-                                },
-                                timeout=5.0,
-                            )
-                    elif provider == "openrouter":
-                        c = self._openrouter_client
-                        if c:
-                            c.get(
-                                "https://openrouter.ai/api/v1/models",
-                                headers={
-                                    "Authorization":
-                                        f"Bearer {self._heartbeat_api_key}"
-                                },
-                                timeout=5.0,
-                            )
                 except Exception:
                     pass
 
@@ -511,12 +474,10 @@ class _ConnectionPool:
             self._anthropic_client   = None
             self._openai_client      = None
             self._cerebras_client    = None
-            self._openrouter_client  = None
             self._proxy_client       = None
             self._last_anthropic_key = ""
             self._last_openai_key    = ""
             self._last_cerebras_key  = ""
-            self._last_openrouter_key= ""
             self._last_proxy_url     = ""
 
 
@@ -538,7 +499,7 @@ _OPENAI_MODELS = {
     "best":     "gpt-4o",
 }
 _CEREBRAS_MODELS = {
-    "fast":     "llama3.1-8b",
+    "fast":     "gpt-oss-120b",
     "balanced": "gpt-oss-120b",
     "best":     "gpt-oss-120b",
 }
@@ -548,10 +509,10 @@ _OPENROUTER_MODELS = {
     "best":     "openrouter/free",
 }
 _DEFAULT_MODELS = {
-    "anthropic":  "claude-haiku-4-5-20251001",
-    "openai":     "gpt-4o",
-    "cerebras":   "gpt-oss-120b",
-    "openrouter": "openrouter/free",
+    "anthropic":   "claude-haiku-4-5-20251001",
+    "openai":      "gpt-4o",
+    "cerebras":    "gpt-oss-120b",
+    "openrouter":  "openrouter/free",
 }
 
 _SIMPLE_KEYWORDS  = frozenset([
@@ -647,17 +608,18 @@ def _auto_select_model(mode, messages, provider, user_model, plan: str = "") -> 
 # ──────────────────────────────────────────────────────────────────────────────
 
 class LLMClient:
-    ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-    OPENAI_URL    = "https://api.openai.com/v1/chat/completions"
-    CEREBRAS_URL  = "https://api.cerebras.ai/v1/chat/completions"
-    _CFG_TTL      = 5.0
+    ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
+    OPENAI_URL     = "https://api.openai.com/v1/chat/completions"
+    CEREBRAS_URL   = "https://api.cerebras.ai/v1/chat/completions"
+    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+    _CFG_TTL       = 5.0
 
     # ── Proxy endpoints — mirrors provider paths ───────────────────────────────
     # When in proxy mode, we use dynamic paths that proxy back to our FastAPI edge router
-    PROXY_ANTHROPIC_PATH  = "/v1/proxy/anthropic"
-    PROXY_OPENAI_PATH     = "/v1/proxy/openai"
-    PROXY_CEREBRAS_PATH   = "/v1/proxy/cerebras"
-    PROXY_OPENROUTER_PATH = "/v1/proxy/openrouter"
+    PROXY_ANTHROPIC_PATH   = "/v1/proxy/anthropic"
+    PROXY_OPENAI_PATH      = "/v1/proxy/openai"
+    PROXY_CEREBRAS_PATH    = "/v1/proxy/cerebras"
+    PROXY_OPENROUTER_PATH  = "/v1/proxy/openrouter"
 
     def __init__(self):
         self._cfg:      Optional[dict] = None
@@ -800,7 +762,7 @@ class LLMClient:
                     if not api_key:
                         return
                     t0 = time.time()
-                    c  = _pool.get_openrouter(api_key)
+                    c  = _pool.get_cerebras(api_key)  # reuse pool pattern
                     r  = c.get(
                         "https://openrouter.ai/api/v1/models",
                         headers={"Authorization": f"Bearer {api_key}"},
@@ -973,7 +935,7 @@ class LLMClient:
                 elif provider == "openrouter":
                     full_text = self._stream_via_proxy(
                         cfg, model, system_prompt, messages,
-                        optimized_images, on_token, cancel_event, mode,
+                        None, on_token, cancel_event, mode,
                         proxy_url, proxy_token, "openrouter",
                     )
                 else:
@@ -998,7 +960,7 @@ class LLMClient:
                 # BYOK mode — direct to OpenRouter
                 full_text = self._stream_openrouter_direct(
                     cfg, model, system_prompt, messages,
-                    optimized_images, on_token, cancel_event, mode,
+                    on_token, cancel_event, mode,
                 )
             else:
                 # BYOK mode — direct to OpenAI
@@ -1200,9 +1162,10 @@ class LLMClient:
             }
             endpoint = f"{proxy_url}{self.PROXY_CEREBRAS_PATH}"
         elif provider == "openrouter":
+            # OpenRouter uses OpenAI-compatible format — text only
             or_messages = [{"role": "system", "content": system_prompt}]
             or_messages.extend(
-                self._build_openai_messages(messages, images)
+                self._build_openai_messages(messages, None)
             )
             body = {
                 "model":       model,
@@ -1654,104 +1617,98 @@ class LLMClient:
         )
         return "".join(full_text)
 
-    # ── OpenRouter streaming ───────────────────────────────────────────────────
+    # OpenRouter provides an OpenAI-compatible API at openrouter.ai/api/v1.
+    # Uses the same SSE format as OpenAI Chat Completions.
+    # BYOK mode: user provides their own OpenRouter API key.
 
     def _stream_openrouter_direct(
-        self,
-        cfg:           dict,
-        model:         str,
-        system_prompt: str,
-        messages:      List[dict],
-        images:        Optional[List[str]],
-        on_token:      Callable[[str], None],
-        cancel_event:  Optional[threading.Event],
-        mode:          str = "solve",
+        self, cfg, model, system_prompt, messages,
+        on_token, cancel_event, mode,
     ) -> str:
         api_key = cfg.get("openrouter_api_key", "").strip()
         if not api_key:
             raise RuntimeError(
-                "No OpenRouter API key configured. Open Settings to add one."
+                "No OpenRouter API key configured.\n"
+                "Go to Settings → BYOK → OpenRouter to add your key."
             )
 
-        http_client = _pool.get_openrouter(api_key)
-        max_tokens  = self._get_max_tokens(cfg, mode)
+        max_tokens = self._get_max_tokens(cfg, mode)
         if mode == "interview":
             max_tokens = min(max_tokens, 400)
 
-        or_messages = [{"role": "system", "content": system_prompt}]
-        or_messages.extend(self._build_openai_messages(messages, images))
+        oai_msgs = [{"role": "system", "content": system_prompt}]
+        oai_msgs.extend(self._build_openai_messages(messages, None))
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type":  "application/json",
-            "HTTP-Referer": "https://glassnoteai.com",
-            "X-Title": "GlassNote",
-        }
         body = {
-            "model":          model,
-            "messages":       or_messages,
-            "stream":         True,
-            "max_tokens":     max_tokens,
-            "temperature":    _MODE_TEMPERATURES.get(mode, 0.7),
+            "model":       model,
+            "messages":    oai_msgs,
+            "stream":      True,
+            "max_tokens":  max_tokens,
+            "temperature": _MODE_TEMPERATURES.get(mode, 0.7),
         }
+
+        http_client = _pool.get_cerebras(api_key)  # reuse same pool pattern
 
         full_text: list[str]       = []
         t0         = time.time()
         ttft_ms:   Optional[float] = None
 
         with http_client.stream(
-            "POST", "https://openrouter.ai/api/v1/chat/completions", headers=headers, json=body,
-        ) as r:
-            r.raise_for_status()
-            buffer = ""
-            for chunk in r.iter_bytes():
+            "POST",
+            self.OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type":  "application/json",
+                "HTTP-Referer":  "https://glassnoteai.com",
+                "X-Title":       "GlassNote",
+            },
+            json=body,
+            timeout=120.0,
+        ) as response:
+            if response.status_code != 200:
+                error = response.read().decode(errors="replace")[:400]
+                raise RuntimeError(
+                    f"OpenRouter API error {response.status_code}: {error}"
+                )
+
+            for line in response.iter_lines():
                 if cancel_event and cancel_event.is_set():
                     print("[llm] openrouter stream cancelled")
                     break
-
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
                 try:
-                    buffer += chunk.decode("utf-8")
-                except UnicodeDecodeError:
+                    evt = json.loads(data)
+                except json.JSONDecodeError:
                     continue
 
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
+                if evt.get("usage"):
+                    u = evt["usage"]
+                    print(
+                        f"[llm] openrouter usage — "
+                        f"prompt={u.get('prompt_tokens', 0)}  "
+                        f"completion={u.get('completion_tokens', 0)}  "
+                        f"total={u.get('total_tokens', 0)}"
+                    )
 
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        evt = json.loads(data)
-                    except json.JSONDecodeError:
-                        continue
-
-                    if evt.get("usage"):
-                        u = evt["usage"]
-                        print(
-                            f"[llm] openrouter usage — "
-                            f"prompt={u.get('prompt_tokens', 0)}  "
-                            f"completion={u.get('completion_tokens', 0)}  "
-                            f"total={u.get('total_tokens', 0)}"
-                        )
-
-                    try:
-                        txt = evt["choices"][0]["delta"].get("content", "")
-                        if txt:
-                            if ttft_ms is None:
-                                ttft_ms = (time.time() - t0) * 1_000
-                                print(
-                                    f"[llm] TTFT {ttft_ms:.0f} ms  "
-                                    f"model={model}  mode={mode}  "
-                                    f"max_tokens={max_tokens}  "
-                                    f"provider=openrouter"
-                                )
-                            full_text.append(txt)
-                            on_token(txt)
-                    except (KeyError, IndexError, AttributeError):
-                        continue
+                try:
+                    txt = evt["choices"][0]["delta"].get("content", "")
+                    if txt:
+                        if ttft_ms is None:
+                            ttft_ms = (time.time() - t0) * 1_000
+                            print(
+                                f"[llm] TTFT {ttft_ms:.0f} ms  "
+                                f"model={model}  mode={mode}  "
+                                f"max_tokens={max_tokens}  "
+                                f"provider=openrouter"
+                            )
+                        full_text.append(txt)
+                        on_token(txt)
+                except (KeyError, IndexError, AttributeError):
+                    continue
 
         total_ms = (time.time() - t0) * 1_000
         print(

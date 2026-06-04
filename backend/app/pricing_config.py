@@ -19,22 +19,25 @@ from datetime import datetime, timezone
 # ── All available models ──────────────────────────────────────────────────────
 
 ALL_MODELS = [
-    ("Claude Opus 4.5  [Anthropic — Best]",     "anthropic", "claude-opus-4-5-20251101"),
-    ("Claude Sonnet 4.5  [Anthropic — Fast]",   "anthropic", "claude-sonnet-4-5-20250929"),
-    ("Claude Haiku 4.5  [Anthropic — Fastest]", "anthropic", "claude-haiku-4-5-20251001"),
-    ("GPT-4o  [OpenAI — Best]",                 "openai",    "gpt-4o"),
-    ("GPT-4o Mini  [OpenAI — Fast]",            "openai",    "gpt-4o-mini"),
-    ("GPT-4.1  [OpenAI]",                       "openai",    "gpt-4.1"),
-    ("GPT-4.1 Mini  [OpenAI — Fast]",           "openai",    "gpt-4.1-mini"),
-    ("GPT-4 Turbo  [OpenAI]",                   "openai",    "gpt-4-turbo"),
-    ("o1  [OpenAI — Reasoning]",                "openai",    "o1"),
-    ("o1 Mini  [OpenAI — Reasoning Fast]",      "openai",    "o1-mini"),
-    ("GPT-5.4 Mini  [OpenAI — Fast]",          "openai",    "gpt-5.4-mini"),
-    ("GPT-5.4  [OpenAI — Best]",               "openai",    "gpt-5.4"),
-    ("GPT-5.4 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-5.4-nano"),
-    ("GPT-4.1 Nano  [OpenAI — Ultra Fast]",    "openai",    "gpt-4.1-nano"),
-    ("Llama 3.1 8B  [Cerebras — Ultra Fast]",   "cerebras",  "llama3.1-8b"),
-    ("GPT-OSS 120B  [Cerebras — Fast]",         "cerebras",  "gpt-oss-120b"),
+    ("Claude Opus 4.5  [Anthropic — Best]",     "anthropic",    "claude-opus-4-5-20251101"),
+    ("Claude Sonnet 4.5  [Anthropic — Fast]",   "anthropic",    "claude-sonnet-4-5-20250929"),
+    ("Claude Haiku 4.5  [Anthropic — Fastest]", "anthropic",    "claude-haiku-4-5-20251001"),
+    ("GPT-4o  [OpenAI — Best]",                 "openai",       "gpt-4o"),
+    ("GPT-4o Mini  [OpenAI — Fast]",            "openai",       "gpt-4o-mini"),
+    ("GPT-4.1  [OpenAI]",                       "openai",       "gpt-4.1"),
+    ("GPT-4.1 Mini  [OpenAI — Fast]",           "openai",       "gpt-4.1-mini"),
+    ("GPT-4 Turbo  [OpenAI]",                   "openai",       "gpt-4-turbo"),
+    ("o1  [OpenAI — Reasoning]",                "openai",       "o1"),
+    ("o1 Mini  [OpenAI — Reasoning Fast]",      "openai",       "o1-mini"),
+    ("GPT-5.4 Mini  [OpenAI — Fast]",           "openai",       "gpt-5.4-mini"),
+    ("GPT-5.4  [OpenAI — Best]",                "openai",       "gpt-5.4"),
+    ("GPT-5.4 Nano  [OpenAI — Ultra Fast]",     "openai",       "gpt-5.4-nano"),
+    ("GPT-4.1 Nano  [OpenAI — Ultra Fast]",     "openai",       "gpt-4.1-nano"),
+    ("GPT-OSS 120B  [Cerebras — Fast]",         "cerebras",     "gpt-oss-120b"),
+    # OpenRouter — free models available to all plans
+    ("Free Models Router  [OpenRouter — Auto]",    "openrouter", "openrouter/free"),
+    ("GPT-OSS 120B  [OpenRouter — Free]",          "openrouter", "openai/gpt-oss-120b:free"),
+    ("Gemma 4 31B  [OpenRouter — Free]",           "openrouter", "google/gemma-4-31b:free"),
 ]
 
 _BASIC_MODEL_IDS = {
@@ -43,8 +46,10 @@ _BASIC_MODEL_IDS = {
     "gpt-4.1-mini",
     "gpt-4.1-nano",
     "gpt-5.4-nano",
-    "llama-3.2-1b-instant",
-    "llama3.1-8b",
+    # OpenRouter free models — available to all plans including free
+    "openrouter/free",
+    "openai/gpt-oss-120b:free",
+    "google/gemma-4-31b:free",
 }
 
 _STANDARD_MODEL_IDS = _BASIC_MODEL_IDS | {

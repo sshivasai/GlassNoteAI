@@ -472,16 +472,6 @@ class SessionManager:
             SessionContext: The newly created session.
         """
         cfg = config.load_config()
-        provider = cfg.get("selected_provider", "anthropic")
-        if provider == "anthropic":
-            model = cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
-        elif provider == "cerebras":
-            model = cfg.get("cerebras_model", "gpt-oss-120b")
-        elif provider == "openrouter":
-            model = cfg.get("openrouter_model", "openrouter/free")
-        else:
-            model = cfg.get("openai_model", "gpt-4o")
-
         self.session = SessionContext(
             resume_text=resume_text,
             job_description=job_description,
@@ -489,8 +479,10 @@ class SessionManager:
             extra_prompt=extra_prompt,
             language=language,
             simple_language=simple_language,
-            provider=provider,
-            model=model,
+            provider=cfg.get("selected_provider", "anthropic"),
+            model=cfg.get("anthropic_model", "claude-haiku-4-5-20251001")
+                  if cfg.get("selected_provider") == "anthropic"
+                  else cfg.get("openai_model", "gpt-4o"),
             max_tokens=cfg.get("max_tokens", 2048),
             active=True,
             started_at=time.time(),
