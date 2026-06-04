@@ -107,4 +107,8 @@ coverage.xml
 *.tmp
 *.temp
 plans/DEPLOYMENT.md
+
 GUI/glassnote.spec
+
+plans/deployment-plan.md
+

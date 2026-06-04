@@ -346,3 +346,18 @@ Vercel auto-deploys the frontend on every push — no extra config needed.
 | **Hostinger** for domain | $9/yr, includes DNS management, no extra cost |
 | **Secret Manager** for secrets | Secure, auditable, secrets never exposed in GCP console UI |
 | **$300 GCP credits** | Covers ~15–30 months of Cloud Run + Cloud SQL at this scale |
+
+
+REDEPLOY
+
+shivasais_work@cloudshell:~ (glassnote-prod)$ echo -n "key" | gcloud secrets create OPENROUTER_API_KEY --data-file=- --project glassnote-prod
+Created version [1] of the secret [OPENROUTER_API_KEY].
+shivasais_work@cloudshell:~ (glassnote-prod)$ gcloud run deploy glassnote-api --image us-central1-docker.pkg.dev/glassnote-prod/glassnote-backend/api:latest --region us-central1 --project glassnote-prod
+
+
+docker build -t us-central1-docker.pkg.dev/glassnote-prod/glassnote-backend/web:latest --build-arg NEXT_PUBLIC_API_URL=https://api.glassnoteai.com --build-arg NEXT_PUBLIC_DOWNLOAD_URL=https://storage.googleapis.com/glassnote-downloads/GlassNote_Setup_v1.0.0.exe --build-arg NEXT_PUBLIC_GOOGLE_CLIENT_ID=560086433417-5o54sqg8q1vr83c2sitma99olp5eoicg.apps.googleusercontent.com ./website
+
+
+docker push us-central1-docker.pkg.dev/glassnote-prod/glassnote-backend/web:latest       
+
+gcloud run deploy glassnote-web --image us-central1-docker.pkg.dev/glassnote-prod/glassnote-backend/web:latest --region us-central1 --project glassnote-prod
