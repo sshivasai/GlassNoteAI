@@ -180,7 +180,7 @@ export async function Pricing() {
               <h3 className="text-lg font-bold text-white mb-2">💡 Free Forever with BYOK</h3>
               <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                 Bring Your Own API Keys (BYOK) for unlimited access at <span className="text-[var(--cyan)] font-semibold">$0 platform cost</span>.
-                You pay only your AI provider (OpenAI, Anthropic, Deepgram) — typically <span className="text-[var(--lime)]">$0.50-$2 per hour</span> of meetings.
+                Use <span className="text-[var(--lime)]">OpenRouter free models</span> at zero cost, or pay only your AI provider (OpenAI, Anthropic, Deepgram) — typically <span className="text-[var(--lime)]">$0.50-$2 per hour</span> of meetings.
                 Your data goes directly to your providers, never touching our servers.
               </p>
             </div>

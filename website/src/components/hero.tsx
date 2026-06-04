@@ -27,7 +27,7 @@ export function Hero() {
       <div className="max-w-4xl mx-auto text-center z-10">
         <div className="mb-8 animate-fade-in">
           <Badge className="bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.12)] text-white border border-[rgba(255,255,255,0.2)] px-4 py-1.5 backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.05)] transition-all">
-            ✨ Powered by Claude & GPT
+            ✨ Powered by Claude, GPT & OpenRouter
           </Badge>
         </div>
 
@@ -188,6 +188,13 @@ export function Hero() {
                         <div>
                           <div className="text-[10px] font-bold text-white">Anthropic</div>
                           <div className="text-[9px] text-[var(--cyan)]">Sonnet, Opus, etc</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 rounded bg-white/5 border border-white/5 hover:border-[var(--lime)] transition-colors cursor-pointer col-span-2">
+                        <div className="w-6 h-6 rounded flex items-center justify-center overflow-hidden bg-black border border-white/10 text-[8px] font-bold text-[var(--lime)] shrink-0">OR</div>
+                        <div>
+                          <div className="text-[10px] font-bold text-white">OpenRouter</div>
+                          <div className="text-[9px] text-[var(--lime)]">100+ models • Free tier available</div>
                         </div>
                       </div>
                     </div>

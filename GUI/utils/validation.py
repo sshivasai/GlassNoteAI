@@ -24,7 +24,7 @@ def validate_api_key(key: str, provider: str = "generic") -> bool:
 
     Args:
         key: The API key to validate
-        provider: Provider name (anthropic, openai, deepgram, cerebras)
+        provider: Provider name (anthropic, openai, deepgram, cerebras, openrouter)
 
     Returns:
         bool: True if valid format
@@ -51,6 +51,9 @@ def validate_api_key(key: str, provider: str = "generic") -> bool:
     elif provider == "cerebras":
         # Cerebras keys format (assumed similar to OpenAI)
         return key.startswith("csk-") or (len(key) > 30 and re.match(r'^[a-zA-Z0-9_-]+$', key))
+    elif provider == "openrouter":
+        # OpenRouter keys start with sk-or-v1-
+        return key.startswith("sk-or-v1-") and len(key) > 40
 
     # Generic validation: alphanumeric + common special chars
     return re.match(r'^[a-zA-Z0-9_.\-]+$', key) is not None and len(key) >= 20

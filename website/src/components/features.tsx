@@ -51,8 +51,8 @@ const features = [
   },
   {
     icon: AILogos,
-    title: "Claude & GPT Powered",
-    description: "Access to Claude Opus, Sonnet, Haiku, GPT-4o, and more. Auto-routing intelligently selects the optimal model.",
+    title: "Claude, GPT & OpenRouter",
+    description: "Access Claude Opus, Sonnet, Haiku, GPT-4o, and 100+ models via OpenRouter — including free-tier models. Auto-routing selects the optimal model for each query.",
   },
   {
     icon: GhostIcon,
@@ -62,7 +62,7 @@ const features = [
   {
     icon: LightningIcon,
     title: "187ms First Token",
-    description: "Blazing-fast responses powered by Cerebras models, HTTP/2 connection pooling, and optimized streaming architecture.",
+    description: "Blazing-fast responses powered by OpenRouter free models, Cerebras GPT-OSS, HTTP/2 connection pooling, and optimized streaming architecture.",
   },
   {
     icon: KeyIcon,
