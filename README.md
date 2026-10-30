@@ -1,10 +1,14 @@
-# GlassNote AI <img width="40" height="40" alt="image" src="https://github.com/sshivasai/GlassNoteAI/blob/main/logo.jpg" />
+
 
 
 <div align="center">
   
+# GlassNote AI 
 
-  www.glassnoteai.com
+<img width="40" height="40" alt="image" src="https://github.com/sshivasai/GlassNoteAI/blob/main/logo.jpg" />
+ 
+
+www.glassnoteai.com
 
 
   
