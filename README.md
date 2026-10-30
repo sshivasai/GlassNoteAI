@@ -1,4 +1,4 @@
-# GlassNote AI <img width="40" height="40" alt="image" src="https://glassnoteai.com/Logo.png" />
+# GlassNote AI <img width="40" height="40" alt="image" src="https://github.com/sshivasai/GlassNoteAI/blob/main/logo.jpg" />
 
 
 <div align="center">
