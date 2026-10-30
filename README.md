@@ -13,273 +13,427 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com/)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
-**Speak confidently in every meeting with real-time AI assistance**
+Real-time transcription and contextual AI assistance for desktop workflows.
 
-[Features](#features) • [Architecture](#architecture) • [Setup](SETUP.md) • [Contributing](#contributing) • [License](#license)
+GlassNote combines a Python desktop application with speech-to-text and language-model integrations. It is intended for permitted meeting assistance, personal note-taking, and reviewing on-screen information.
 
-</div>
+[Website](https://glassnoteai.com) · [Setup](SETUP.md) · [Issues](https://github.com/sshivasai/GlassNoteAI/issues)
 
----
+## Capabilities
 
-## 🚀 What is GlassNote?
+- Capture supported audio sources and send audio to a configured transcription provider.
+- Stream responses from supported language-model providers.
+- Use screen context to inform responses when screen capture is enabled.
+- Display assistance through a PyQt6 desktop interface.
+- Configure provider credentials and application preferences.
 
-GlassNote is an **open-source AI meeting assistant** that provides real-time answers through an invisible transparent overlay. It helps you communicate clearly and confidently in meetings by:
+Features and provider availability depend on the installed version and configuration. AI-generated transcripts and responses can contain errors; review outputs before relying on them.
 
-- 🎤 **Real-time transcription** of meeting audio (Deepgram, OpenAI Whisper, GPT-4o Realtime)
-- 🖥️ **Intelligent screen capture** that detects and analyzes content automatically
-- 🤖 **AI-powered responses** from Claude (Opus, Sonnet, Haiku) or GPT models (4o, o1, o3)
-- 👻 **Completely invisible** to screen sharing tools (Zoom, Teams, Meet, etc.)
-- ⚡ **187ms first token** with Cerebras models and optimized streaming architecture
-- 🔐 **100% privacy** with BYOK (Bring Your Own Keys) mode
+## Architecture
 
-### Not a Bot, Just Confidence
+| Component | Technology | Responsibility |
+| --- | --- | --- |
+| Desktop client | Python, PyQt6 | Audio capture, interface, screen context, session controls |
+| Backend | FastAPI, PostgreSQL, SQLAlchemy | Application APIs and account workflows |
+| Website | Next.js, React, Tailwind CSS | Web interface and application access |
+| External providers | Configured STT and LLM APIs | Transcription and response generation |
 
-GlassNote doesn't sit in your meeting as a bot. It's a personal assistant that only you can see, helping you speak more confidently and clearly without anyone knowing.
+See the source and configuration for the routing used by your deployment. Local execution of the client does not mean all processing remains on your device.
 
----
+## Setup
 
-## ✨ Features
+The existing project setup documentation specifies Python 3.11+, Node.js 18+, PostgreSQL 15+, and Windows 10/11 for the desktop client. Consult [SETUP.md](SETUP.md) and package manifests for version-specific requirements.
 
-### Core Capabilities
+### Backend
 
-- **Multi-model Support**: Choose between Claude Opus, Sonnet, Haiku, GPT-4o, GPT-4, o1, o3, and more
-- **Auto Model Routing**: Intelligent model selection based on query complexity
-- **Blazing Fast**: 187ms TTFT (Time To First Token) with Cerebras models
-- **Screen Intelligence**: Automatically captures and analyzes screen content for context
-- **Voice Gate**: Only processes audio when someone is speaking (reduces API costs)
-- **Stealth Mode**: Hardware overlay bypass makes it invisible to all screen capture tools
-- **Session Management**: Save, resume, and export meeting sessions
-- **Hotkey Support**: Trigger responses instantly with customizable keyboard shortcuts
-- **BYOK Mode**: Use your own API keys for unlimited access at zero platform cost
-
-### Privacy & Security
-
-- **Open Source**: Full transparency — audit every line of code
-- **Self-Hostable**: Run the entire backend on your own infrastructure
-- **BYOK Mode**: Your data never touches our servers when using your own API keys
-- **Local Audio Processing**: All transcription happens locally or directly with your STT provider
-- **No Meeting Bot**: GlassNote doesn't join meetings — it's invisible to other participants
-
----
-
-## 🏗️ Architecture
-
-GlassNote consists of three main components:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      GlassNote Stack                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────┐ │
-│  │   GUI Client     │  │  Backend API     │  │ Website  │ │
-│  │   (PyQt6)        │  │  (FastAPI)       │  │ (Next.js)│ │
-│  │                  │  │                  │  │          │ │
-│  │  • Overlay       │  │  • Auth          │  │  • Docs  │ │
-│  │  • Audio Pipeline│  │  • Proxy         │  │  • Dash  │ │
-│  │  • Screen Capture│  │  • Billing       │  │  • Admin │ │
-│  │  • Hotkeys       │  │  • Analytics     │  │          │ │
-│  │  • Session Mgmt  │  │  • Rate Limiting │  │          │ │
-│  └──────────────────┘  └──────────────────┘  └──────────┘ │
-│           │                      │                    │     │
-│           └──────────────────────┴────────────────────┘     │
-│                              │                              │
-└──────────────────────────────┼──────────────────────────────┘
-                               │
-                ┌──────────────┴──────────────┐
-                │                             │
-         ┌──────▼──────┐            ┌────────▼────────┐
-         │  STT APIs   │            │   LLM APIs      │
-         │  • Deepgram │            │   • Claude      │
-         │  • OpenAI   │            │   • GPT         │
-         │  • Whisper  │            │   • Cerebras    │
-         └─────────────┘            └─────────────────┘
-```
-
-### Component Breakdown
-
-#### 1. **GUI Client** (`/GUI`)
-- **Framework**: PyQt6
-- **Key Features**:
-  - Transparent overlay window with custom rendering
-  - Real-time audio capture and transcription pipeline
-  - Automatic screen content detection and capture
-  - Hotkey management and session control
-  - Crash recovery and error handling
-  - System tray integration
-
-#### 2. **Backend API** (`/backend`)
-- **Framework**: FastAPI + PostgreSQL + SQLAlchemy
-- **Key Features**:
-  - User authentication (JWT, Google OAuth)
-  - API proxy for LLM providers (with HTTP/2 connection pooling)
-  - Usage tracking and billing (Stripe integration)
-  - Rate limiting (slowapi)
-  - Pricing configuration management
-  - Email notifications (SendGrid)
-
-#### 3. **Website** (`/website`)
-- **Framework**: Next.js 15 + React + TailwindCSS
-- **Key Features**:
-  - Landing page with live pricing data
-  - User dashboard and billing portal
-  - Authentication flow (login/signup)
-  - Usage analytics and session history
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Python 3.11+**
-- **Node.js 18+** (for website)
-- **PostgreSQL 15+** (for backend)
-- **Windows 10/11** (for GUI client)
-
-### Installation
-
-See [SETUP.md](SETUP.md) for detailed installation instructions for each component.
-
-**TLDR**:
 ```bash
-# 1. Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env  # Configure your environment
+cp .env.example .env
+# Configure your database and provider credentials.
 alembic upgrade head
 uvicorn app.main:app --reload
+```
 
-# 2. Website
+### Website
+
+```bash
 cd website
 npm install
 npm run dev
+```
 
-# 3. GUI Client
+### Desktop client
+
+```bash
 cd GUI
 pip install -r requirements.txt
 python main.py
 ```
 
----
+Keep credentials out of source control. Use development credentials when evaluating the application.
 
-## 📊 Performance
+## Data handling
 
-GlassNote is optimized for **ultra-low latency** to provide instant responses:
+Depending on enabled features and configuration, audio, transcript text, prompts, or screen-derived context may be transmitted to external providers for processing. Bring-your-own-key configuration does not by itself guarantee local processing, zero retention, or end-to-end privacy.
 
-| Metric | Value | Details |
-|--------|-------|---------|
-| **TTFT (First Token)** | 187ms | Cerebras models with HTTP/2 pooling |
-| **Audio Latency** | ~42ms | System audio capture + VAD |
-| **Screen Capture** | ~100ms | Screenshot + diff detection |
-| **Overlay FPS** | 60fps | Hardware-accelerated rendering |
-| **Memory Usage** | ~124MB | Lightweight PyQt6 client |
+Review your provider's policies and inspect your deployment's routing, logging, session storage, and deletion behavior before using sensitive information. This project does not claim certified compliance or suitability for regulated data.
 
-### Optimization Techniques
+## Responsible use
 
-1. **HTTP/2 Connection Pooling**: Reuses connections to LLM providers
-2. **Speculative Pre-warming**: Keeps connections warm during meetings
-3. **Zero-copy Streaming**: Direct byte streaming from API to overlay
-4. **Voice Activity Detection**: Only processes audio when speech is detected
-5. **Diff-based Screen Capture**: Only captures changed regions
-6. **Prompt Caching**: Caches repeated context (Claude, GPT-4o)
+Use audio and screen capture only when you have the necessary permission and when the activity is allowed by your organization or meeting rules. Do not use the application to bypass assessment rules or conceal prohibited assistance.
 
----
+An overlay's visibility during screen sharing depends on the operating system, capture method, and application. Do not rely on capture exclusion to protect confidential information.
 
-## 🔐 Privacy & BYOK Mode
+## Performance
 
-GlassNote prioritizes your privacy:
+Latency varies with provider, model, network, hardware, prompt length, and service load. This README does not assert a universal latency guarantee.
 
-### BYOK (Bring Your Own Keys)
-When you use your own API keys:
-- ✅ Your data goes **directly** to your STT/LLM provider (Deepgram, OpenAI, Anthropic)
-- ✅ **No logs** are stored on GlassNote servers
-- ✅ **No usage tracking** (unless you opt in for analytics)
-- ✅ **Zero platform fees** — pay only your provider's API costs
+Reproducible performance reports should include:
+- Commit, OS, hardware, provider, model, and region.
+- Input size, concurrency, request count, and warm/cold conditions.
+- Separate audio-capture delay, transcription delay, time to first token, and full-response latency.
+- Median and P95 latency, failure rate, measurement script, and raw results.
 
-### GlassNote Cloud
-If you use GlassNote Cloud (managed keys):
-- Session metadata (duration, model used) is stored for billing
-- Audio/transcripts are **never** stored
-- Screen captures are **never** uploaded
-- All data is encrypted in transit and at rest
+## Limitations
 
----
+Transcription quality varies with noise, accents, and overlapping speech. Generated answers may be inaccurate. Third-party services can impose costs, rate limits, or outages. Cross-platform behavior and capture compatibility require separate testing.
 
-## 🛠️ Configuration
+## Contributing
 
-### GUI Settings (`GUI/settings/config.py`)
-```python
-{
-    "glassnote_api_url": "http://localhost:8000",
-    "process_disguise_name": "Windows Audio Endpoint Builder",
-    "hotkey_trigger": "ctrl+space",
-    "theme": "dark",
-    "byok_mode": true,
-    "api_keys": {
-        "anthropic": "sk-ant-...",
-        "openai": "sk-...",
-        "deepgram": "..."
-    }
-}
-```
+Open an issue with reproduction steps, application version, and redacted logs. Never include API keys, private transcripts, or confidential screenshots.
 
-### Backend Environment (`.env`)
+See the repository license file for licensing terms.
+
+## Repository guide
+
+| Path | Purpose |
+| --- | --- |
+| `GUI/` | Windows desktop application and audio/interface workflows |
+| `GUI/main.py` | Documented desktop entry point |
+| `GUI/settings/config.py` | Settings referenced by the setup guide |
+| `backend/` | FastAPI application and database integration |
+| `website/` | Next.js web application |
+| `SETUP.md` | Component installation instructions |
+
+The setup steps below follow the repository's existing setup guide. They are development instructions, not evidence of a tested production deployment.
+
+## Detailed local installation
+
+### 1. Get the source
+
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost/glassnote
-SECRET_KEY=your-secret-key-here
-STRIPE_SECRET_KEY=sk_test_...
-SENDGRID_API_KEY=SG...
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
+git clone https://github.com/sshivasai/GlassNoteAI.git
+cd GlassNoteAI
 ```
 
----
+Use separate terminals for the backend, website, and desktop client. Run each component from its own directory. Use the Python requirements and JavaScript package manifests in your checkout as the authoritative dependency definitions.
 
-## 🤝 Contributing
+### 2. Prepare the backend
 
-We welcome contributions! Here's how you can help:
+From the repository root:
 
-1. **Report Bugs**: Open an issue with detailed reproduction steps
-2. **Suggest Features**: Describe your use case and proposed solution
-3. **Submit PRs**: Fork, create a branch, and submit a pull request
-4. **Improve Docs**: Help us make the documentation clearer
+```bash
+cd backend
+python -m venv .venv
+```
 
-### Development Setup
+Activate the environment:
 
-See [SETUP.md](SETUP.md) for detailed development environment setup.
+Windows PowerShell:
 
----
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
 
-## 📝 License
+macOS or Linux:
 
-GlassNote is open source under the [MIT License](LICENSE).
+```bash
+source .venv/bin/activate
+```
 
----
+Install dependencies:
 
-## 🙏 Acknowledgments
+```bash
+python -m pip install -r requirements.txt
+```
 
-GlassNote is built with amazing open-source technologies:
+Create a dedicated PostgreSQL database and account with permissions to apply the application's migrations. Use a development database for your first run. Configure its connection string in the backend environment.
 
-- **AI Models**: [Anthropic Claude](https://anthropic.com), [OpenAI GPT](https://openai.com), [Cerebras](https://cerebras.ai)
-- **STT**: [Deepgram](https://deepgram.com), [OpenAI Whisper](https://openai.com/research/whisper)
-- **Frameworks**: [FastAPI](https://fastapi.tiangolo.com), [Next.js](https://nextjs.org), [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)
-- **Infrastructure**: [PostgreSQL](https://postgresql.org), [Stripe](https://stripe.com), [SendGrid](https://sendgrid.com)
+Copy the supplied environment template:
 
----
+macOS or Linux:
 
-## 📧 Support
+```bash
+cp .env.example .env
+```
 
-- **Email**: [support@glassnote.ai](mailto:support@glassnote.ai)
-- **GitHub Issues**: [Report a bug](https://github.com/sshivasai/GlassNoteAI/issues)
-- **Discussions**: [Join the conversation](https://github.com/sshivasai/GlassNoteAI/discussions)
+Windows PowerShell:
 
----
+```powershell
+Copy-Item .env.example .env
+```
 
-<div align="center">
+Generate a random application secret:
 
-**Made with ❤️**
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
 
-[Website](https://glassnoteai.com) • [GitHub](https://github.com/sshivasai/GlassNoteAI) • [Documentation](https://api.glassnoteai.com/docs)
+Generate independent values for separate secret settings. Do not reuse the example placeholders.
 
-</div>
+### Backend configuration reference
+
+These names are documented in the existing setup guide. Check the configuration loader in your checkout for required fields, defaults, and accepted formats.
+
+| Variable | Purpose | Configuration guidance |
+| --- | --- | --- |
+| `DATABASE_URL` | PostgreSQL connection | Use the documented asyncpg URL format with a dedicated database account |
+| `SECRET_KEY` | Application secret | Generate a random value and keep it private |
+| `JWT_SECRET_KEY` | Token-signing secret | Generate separately; avoid shared development credentials |
+| `JWT_ALGORITHM` | Token-signing algorithm | Match the backend's supported configuration |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access-token lifetime | Set according to your session requirements |
+| `ENVIRONMENT` | Runtime environment | Use development settings for local evaluation |
+| `CORS_ORIGINS` | Browser origins allowed by the API | Match the web application's exact origin and loader format |
+| `FRONTEND_URL` | Web application address | Use your local website URL during development |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in integration | Configure only when enabling that integration |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Billing integration | Start with test credentials |
+| `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` | Transactional email | Configure for email-dependent workflows |
+
+Example database URL shape:
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://glassnote_user:REPLACE_WITH_PASSWORD@localhost:5432/glassnote
+ENVIRONMENT=development
+FRONTEND_URL=http://localhost:3000
+```
+
+This example is not a complete environment file. Use the repository template and supply all fields required by your version. Encode reserved characters in URL credentials correctly.
+
+Apply migrations and start the development server:
+
+```bash
+alembic upgrade head
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open [local API documentation](http://127.0.0.1:8000/docs). Binding to loopback keeps this development server accessible on the local machine. A development server with reload enabled is not a production deployment.
+
+### 3. Prepare the website
+
+In a new terminal, from the repository root:
+
+```bash
+cd website
+npm install
+```
+
+When the repository includes a compatible lockfile, use `npm ci` for a reproducible installation.
+
+Create `website/.env.local` using the variables documented in the setup guide:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ENV=development
+```
+
+Optional integrations may also use `NEXT_PUBLIC_GOOGLE_CLIENT_ID` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+
+Variables prefixed with `NEXT_PUBLIC_` are intended for browser exposure. Never place provider API secrets, private Stripe keys, database passwords, or token-signing secrets in them.
+
+Start the website:
+
+```bash
+npm run dev
+```
+
+Open [the local website](http://localhost:3000). Restart the development process after environment changes. Ensure the backend allows the exact origin used in your browser; `localhost` and `127.0.0.1` are different hostnames.
+
+### 4. Prepare the desktop client
+
+In another terminal on Windows, from the repository root:
+
+```powershell
+cd GUI
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python main.py
+```
+
+The existing setup guide describes a tray-based startup flow. If the main window does not appear, check the system tray and the launching terminal for errors.
+
+Use application settings to configure the backend address and the providers you intend to use. Do not add real credentials to tracked configuration files.
+
+### Desktop settings reference
+
+| Setting | Meaning |
+| --- | --- |
+| `glassnote_api_url` | Backend address used by the client |
+| `hotkey_trigger` | Shortcut for triggering the configured action |
+| `theme` | Interface appearance |
+| `byok_mode` | Selects the documented bring-your-own-key mode |
+| `api_keys.anthropic` | Anthropic credentials when using that integration |
+| `api_keys.openai` | OpenAI credentials when using that integration |
+| `api_keys.deepgram` | Deepgram credentials when using that integration |
+
+The settings table documents names, not a promise that credentials are stored securely. Inspect the installed version's credential persistence before adding sensitive keys.
+
+## First session walkthrough
+
+1. Start the services required by your chosen configuration.
+2. Select an available transcription provider and a supported response model.
+3. Configure credentials for those providers; you do not need every provider to evaluate a single workflow.
+4. Select the intended audio input.
+5. Test with non-sensitive audio and confirm the transcript reflects that source.
+6. Trigger a response and confirm that it streams into the desktop interface.
+7. If using screen context, test on a non-sensitive window and inspect what context is included.
+8. Stop the session and confirm capture has ended.
+9. Review any local session files and provider usage associated with your test.
+
+Do not assume session export, recording, or retention behavior from the presence of a UI control. Check what your installed version actually writes and sends.
+
+## Audio routing
+
+Microphone input and system-playback capture are different sources. Select the source that matches your intended workflow.
+
+The existing Windows setup guide describes Stereo Mix and virtual audio routing. Availability varies by sound hardware and drivers. Enable or configure a supported recording source, then select it in the application where supported. Avoid changing the system-wide default device unless necessary.
+
+The guide documents this diagnostic command from `GUI/`:
+
+```bash
+python audio/stereo_mix_checker.py
+```
+
+If that script is absent in your checkout, use the application's available device selection and Windows sound settings to inspect the input.
+
+When debugging, first test the microphone independently, then test system audio. Prevent feedback loops by ensuring that generated playback is not repeatedly routed into the transcription input.
+
+## Provider modes and costs
+
+### Bring your own keys
+
+BYOK uses credentials supplied by the user. Provider charges, quotas, model access, and rate limits still apply. BYOK is not a guarantee of unlimited usage, offline processing, or zero data retention.
+
+Confirm the request route for each integration. Different providers or features may use different paths through the application.
+
+### Backend-managed integrations
+
+The repository documents backend account, billing, proxy, and usage-tracking components. Their presence in source does not establish availability of a hosted subscription service. Check the actual deployed offering before relying on managed access or a pricing plan.
+
+No fixed provider prices are reproduced here because they can change. Estimate costs using your provider's current pricing, selected models, audio duration, token usage, and retry volume.
+
+## Data lifecycle review
+
+The following table identifies data that can be involved in each workflow. It is a review guide, not a claim that every listed storage destination is used.
+
+| Data | Why it may be processed | What to verify |
+| --- | --- | --- |
+| Audio | Speech recognition | Destination, buffering, recording, provider retention |
+| Transcript text | Context for AI responses | Prompt inclusion, session storage, logging, deletion |
+| Screen images or extracted text | Contextual assistance | Capture trigger, selected region, destination, persistence |
+| Prompts and responses | Language-model inference | Routing, provider policies, local history |
+| Account information | Authentication and account management | Database fields, access restrictions, removal |
+| Usage metadata | Quotas, analytics, or billing | Fields collected and retention period |
+| API keys and tokens | Provider and service authentication | Storage mechanism, access control, rotation |
+
+Self-hosting the backend gives you control over that backend's operation. It does not automatically keep requests to external transcription or language-model providers local.
+
+## Performance measurement guide
+
+Measure each stage separately so the results describe the user experience accurately.
+
+| Metric | Start | End |
+| --- | --- | --- |
+| Transcription finalization delay | End of the spoken segment | Final transcript received |
+| Time to first token | Model request submitted | First response token received |
+| Full response latency | Model request submitted | Final response token received |
+| UI display delay | Response data received by client | Corresponding content displayed |
+| End-to-end response delay | Defined user trigger or end of speech | First useful response displayed |
+
+Document the exact timing boundaries used. For a benchmark, include request count, median, P95, errors, timeouts, model identifier, prompt sizes, concurrency, network location, hardware, application commit, and warm versus cold conditions. Include failed requests instead of silently excluding them.
+
+Do not present one provider's best-case first-token measurement as total speech-to-answer latency.
+
+## Troubleshooting reference
+
+| Symptom | Checks |
+| --- | --- |
+| Database connection fails | Confirm PostgreSQL is running, credentials are valid, host and port match, and the database exists |
+| Migration fails | Inspect the first error, current migration revision, and database permissions; back up data before changing schema |
+| Website cannot reach API | Verify the backend URL, service availability, browser network errors, and exact CORS origin |
+| Authentication fails | Check environment secrets, callback configuration where applicable, and token expiration |
+| Provider rejects requests | Check key validity, account balance, model access, request limits, and the returned error |
+| No transcript appears | Verify selected audio source, input levels, capture permissions, and transcription credentials |
+| Transcript repeats or echoes | Inspect virtual routing and whether speaker playback feeds the selected input |
+| Response is slow | Separate transcription, provider inference, network, and UI delays before changing settings |
+| Desktop window appears missing | Check tray state, monitor placement, opacity settings, and startup errors |
+| Python import fails | Verify the active environment and install requirements with that environment's Python |
+| Website build fails | Inspect the first build error and dependency versions; distinguish configuration errors from code errors |
+
+Do not reset the database as a routine migration fix. Do not assume administrator privileges are required to resolve a desktop display issue.
+
+When reporting a problem, include the component, commit or version, OS, reproduction steps, expected behavior, actual behavior, and redacted error output.
+
+## Deployment considerations
+
+Local development and production operation have different requirements. Before exposing the application beyond your machine:
+
+- Configure HTTPS and verify authentication and authorization on sensitive routes.
+- Restrict allowed origins and keep the database on a private network.
+- Separate development and production credentials.
+- Define session, transcript, screenshot, and log retention.
+- Apply migrations through a controlled process with tested backups.
+- Set resource limits, timeouts, and provider spending limits.
+- Monitor request failures without logging sensitive content unnecessarily.
+- Verify OAuth redirects and billing webhook handling if those integrations are enabled.
+
+The setup guide contains Docker examples. Validate them against the current repository and your deployment environment before use. Containerizing the backend does not provide Windows desktop capture functionality.
+
+## Development and validation
+
+Use a dedicated branch and keep changes focused. Follow the test and build commands present in the relevant component's configuration; this README does not claim an existing passing test suite or coverage percentage.
+
+For changes involving audio or model integrations, validate:
+- Startup and shutdown.
+- Provider errors, rate limits, and network interruption.
+- Empty audio, long pauses, and overlapping speech.
+- Session cancellation during a streaming response.
+- Handling of missing credentials.
+- Whether logs expose private content.
+- Compatibility with the documented operating system.
+
+For website changes, the setup guide documents:
+
+```bash
+npm run build
+```
+
+A successful frontend build does not validate backend authorization, audio correctness, or provider behavior.
+
+## FAQ
+
+**Does GlassNote run entirely offline?**  
+The documented workflow uses external transcription and language-model APIs. Do not assume offline support.
+
+**Do I need accounts with every provider?**  
+Configure credentials for the integrations you choose. Additional requirements depend on your version and selected mode.
+
+**Does BYOK prevent providers from receiving my data?**  
+No. The selected provider must receive the inputs required for the requested processing.
+
+**Is the desktop client supported on macOS or Linux?**  
+The current setup guide specifies Windows for the GUI. Backend or website portability does not establish desktop capture support on other platforms.
+
+**Is the overlay guaranteed to stay out of recordings?**  
+No universal guarantee is made. Test the exact operating system, capture application, and sharing mode, and avoid relying on this behavior for confidentiality.
+
+**Can I use it with sensitive business or clinical information?**  
+Only after your organization has evaluated the actual deployment, provider arrangements, permissions, and data handling. This README does not establish compliance.
+
+**Are performance numbers guaranteed?**  
+No. Publish reproducible measurements for the configuration being evaluated.
+
+## Support and licensing
+
+Report reproducible issues at [GitHub Issues](https://github.com/sshivasai/GlassNoteAI/issu
